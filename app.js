@@ -95,7 +95,7 @@ $('#confirmNo').addEventListener('click',()=>{confirmPanel.classList.add('hidden
 $('#confirmYes').addEventListener('click',()=>{const a=confirmAction;confirmPanel.classList.add('hidden');a==='all'?resetAll():resetLoop()});
 $('#start').addEventListener('click',start);$('#restart').addEventListener('click',resetLoop);
 $('#notify').addEventListener('click',async()=>{try{if(!('Notification'in window))throw 0;const p=await Notification.requestPermission();$('#notify').textContent=p==='granted'?'NOTIFICHE ATTIVE':'NOTIFICHE NON DISPONIBILI'}catch(_){$('#notify').textContent='NOTIFICHE NON DISPONIBILI'}});
-window.addEventListener('error',e=>{const d=document.createElement('div');d.className='msg sys danger';d.textContent='Errore interno: '+e.message;chat.appendChild(d)});
+// Gli errori esterni/iniettati dal browser non vengono mostrati nella chat di gioco.
 // Una partita lasciata a metà viene riavviata in modo pulito: niente ricostruzioni parziali della chat.
 try{const old=JSON.parse(localStorage.getItem(KEY));if(old&&old.started&&!old.chapterDone&&!old.ending){localStorage.removeItem(KEY)}}catch(_){localStorage.removeItem(KEY)}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').then(r=>r.update()).catch(()=>{});
