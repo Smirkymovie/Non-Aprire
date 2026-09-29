@@ -30,13 +30,24 @@ const D=(label,death,action=true)=>({label,death,action});
 const M=(text,who='sys',delay=420)=>({text,who,delay});
 const NODES={
 intro:{msgs:[M('NON APRIRE.','them',650),M('Controlla la porta d’ingresso. Assicurati che sia chiusa.','them',650),M('TOC.  TOC.  TOC.','sys',1100)],choices:[
- C('Controllo la porta.','A1',true),
- C('“Chi sei?”','B1'),
- C('Ignoro il messaggio.','C1',true),
- C('Provo a chiamare il 112.','D1',true),
- C('Cerco da dove arriva la vibrazione.','E1',true)
+ C('Controllo che sia chiusa.','common_door',true),
+ C('“Chi sei?”','common_who'),
+ C('Resto fermo e ascolto.','common_listen',true)
 ]},
-
+common_door:{msgs:[M('La porta è chiusa a chiave.','sys'),M('La maniglia resta immobile.','sys',500),M('Il telefono vibra di nuovo.','sys',650),M('Non guardare dallo spioncino.','them')],choices:[C('“Come fai a sapere dove sono?”','common_proof'),C('Mi allontano dalla porta.','common_shift',true)]},
+common_who:{msgs:[M('Se te lo dicessi adesso non mi crederesti.','them'),M('Prima ascolta.','them',450),M('TOC.  TOC.  TOC.','sys',850)],choices:[C('“Come fai a sapere dei colpi?”','common_proof'),C('Controllo la porta senza aprirla.','common_shift',true)]},
+common_listen:{msgs:[M('Non rispondi.','sys'),M('Dopo qualche secondo i tre colpi tornano.','sys',700),M('Questa volta, subito dopo, senti una vibrazione bassa. Non capisci se venga dal telefono o dalla casa.','sys',700)],choices:[C('Guardo il telefono.','common_proof',true),C('Cerco di capire da dove arriva il rumore.','common_shift',true)]},
+common_proof:{msgs:[M('Perché questa parte l’ho già vissuta.','them'),M('Tra poco sentirai qualcosa sopra di te.','them',600),M('SCRRRT.','sys',1000),M('Il rumore sembra quello di una sedia trascinata sul pavimento.','sys'),M('Ma sopra di te non c’è nessun piano.','sys',650)],choices:[C('Guardo verso il soffitto.','common_ceiling',true),C('Non guardo in alto. Controllo il corridoio.','common_hall',true)]},
+common_shift:{msgs:[M('Ti sposti dalla porta.','sys'),M('Il telefono perde completamente il segnale per un istante.','sys',600),M('Poi vibra.','sys',500),M('Non sono i messaggi a preoccuparmi. È quello che sta iniziando a rispondere.','them')],choices:[C('“Cosa sta rispondendo?”','common_hall'),C('Resto in silenzio e ascolto la casa.','common_ceiling',true)]},
+common_ceiling:{msgs:[M('Sul soffitto c’è una linea sottile che prima non avevi notato.','sys'),M('Non cade polvere. La linea avanza di pochi centimetri e si ferma.','sys',750),M('Nello stesso momento senti tre colpi provenire dalla parete del corridoio.','sys',750)],choices:[C('Mi allontano dal soffitto.','common_reveal',true),C('Controllo la parete da lontano.','common_reveal',true)]},
+common_hall:{msgs:[M('Il corridoio è vuoto.','sys'),M('Il telefono mostra “Nessun servizio”.','sys',500),M('Eppure arriva un altro messaggio.','sys',650),M('Qualunque cosa tu faccia, non aprire niente finché non capisci quale rumore stai seguendo.','them'),M('Dalla camera arriva un lieve scricchiolio del materasso.','sys',750)],choices:[C('Resto nel corridoio e ascolto.','common_reveal',true),C('Faccio un passo verso la camera, senza entrare.','common_reveal',true)]},
+common_reveal:{msgs:[M('Per alcuni secondi i rumori si sovrappongono.','sys'),M('Tre colpi alla porta d’ingresso.','sys',450),M('Un ronzio dentro la parete.','sys',450),M('Un altro trascinamento sopra di te.','sys',450),M('Dalla camera, lo schermo di qualcosa illumina il buio.','sys',450),M('Poi il tuo telefono tenta da solo una chiamata d’emergenza. Nessun servizio.','sys',600),M('Non posso dirti quale seguire. Questa volta devi scegliere tu.','them',650)],choices:[
+ C('Resto con la porta d’ingresso.','A1',true),
+ C('Chiedo al numero di dimostrare chi è.','B1'),
+ C('Vado verso la camera.','C1',true),
+ C('Controllo la chiamata che il telefono sta tentando.','D1',true),
+ C('Seguo il ronzio nella parete.','E1',true)
+]},
 // RAMO A — LA PORTA
 A1:{msgs:[M('La porta è chiusa a chiave.','sys'),M('Dall’altra parte qualcuno appoggia lentamente la mano sul legno.','sys',650),M('Non guardare dallo spioncino.','them')],choices:[C('Mi allontano senza guardare.','A2',true),C('“Perché?”','A3'),D('Guardo dallo spioncino.','Il pianerottolo è vuoto. Poi un occhio si apre dall’altra parte dello spioncino, troppo vicino per appartenere a qualcuno in piedi.') ]},
 A2:{msgs:[M('Fai due passi indietro.','sys'),M('La maniglia si abbassa una volta. Poi torna su.','sys',650),M('Sotto la porta compare il bordo di una fotografia.','sys')],choices:[C('Raccolgo la fotografia.','A4',true),C('La lascio dov’è e fotografo la porta.','A5',true)]},
