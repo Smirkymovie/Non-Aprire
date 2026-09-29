@@ -4,3 +4,5 @@
 
 /* v0.7 — morte leggibile nella chat */
 .deadBattery{margin:18px 16px calc(22px + env(safe-area-inset-bottom));padding:18px;border:1px solid rgba(255,72,72,.38);border-radius:18px;background:rgba(68,8,12,.28);color:#f3f5f8}.deadBatteryRow{display:flex;align-items:center;gap:14px}.deadBatteryIcon{font-size:42px;line-height:1;filter:saturate(1.5)}.deadBatteryRow strong{display:block;color:#ff5b61;font-size:18px;letter-spacing:.08em}.deadBatteryRow span:not(.deadBatteryIcon){display:block;margin-top:3px;color:#ff8589;font-weight:800}.deadBattery p{margin:14px 0 5px;color:#e7eaf0}.deadBattery small{display:block;color:#9ca6b7;line-height:1.4}.deathCountdown b{color:#ff5b61;font-variant-numeric:tabular-nums}
+
+.choice:disabled{opacity:.45;pointer-events:none}.chapterEnd{align-self:stretch;margin:20px 6px;padding:20px 16px;border:1px solid #344355;border-radius:18px;background:#111923;text-align:center}.chapterEnd strong{display:block;font-size:18px;letter-spacing:.08em;color:#edf1f7}.chapterEnd p{margin:10px 0 6px;color:#c7d0dc}.chapterEnd small{color:#7f8c9d}
