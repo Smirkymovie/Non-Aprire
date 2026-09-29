@@ -83,3 +83,21 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
  background-repeat:no-repeat!important;
 }
 #overlay::before,#overlay::after{content:none!important;display:none!important;background:none!important;clip-path:none!important;}
+
+
+/* UI10 — stato rete solo nella Home, sotto il titolo */
+.homeNetwork{
+ position:absolute;top:38.5%;left:50%;transform:translateX(-50%);
+ width:min(86vw,390px);display:flex;flex-direction:column;align-items:center;gap:8px;
+ color:rgba(245,242,239,.90);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+ font-size:12px;line-height:1.2;letter-spacing:.01em;text-shadow:0 1px 4px rgba(0,0,0,.85);
+}
+.netRow{display:flex;align-items:center;justify-content:center;gap:9px;white-space:nowrap}
+.wifiOff{position:relative;width:22px;height:18px;font-size:0;display:inline-block;flex:0 0 22px}
+.wifiOff:before{content:"";position:absolute;left:1px;top:1px;width:18px;height:12px;border:2px solid rgba(245,245,247,.95);border-left-color:transparent;border-right-color:transparent;border-bottom-color:transparent;border-radius:50%}
+.wifiOff:after{content:"!";position:absolute;right:-2px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:rgba(245,245,247,.95);color:#151515;font:bold 8px/10px -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;box-shadow:-8px -2px 0 -6px rgba(245,245,247,.95)}
+.cellNoSignal{position:relative;width:31px;height:17px;display:inline-flex;align-items:flex-end;gap:2px;flex:0 0 31px}
+.cellNoSignal i{display:block;width:4px;background:rgba(245,245,247,.95);border-radius:1px}
+.cellNoSignal i:nth-child(1){height:5px}.cellNoSignal i:nth-child(2){height:8px}.cellNoSignal i:nth-child(3){height:12px}.cellNoSignal i:nth-child(4){height:16px}
+.cellNoSignal b{position:absolute;right:-2px;top:-7px;color:#ff3b30;font:700 24px/1 -apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.8);transform:rotate(2deg)}
+@media(max-width:380px){.homeNetwork{font-size:11px;top:39%}.netRow{gap:7px}}
