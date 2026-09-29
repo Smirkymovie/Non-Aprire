@@ -29,14 +29,14 @@ const C=(label,next,action=false)=>({label,next,action});
 const D=(label,death,action=true)=>({label,death,action});
 const M=(text,who='sys',delay=420)=>({text,who,delay});
 const NODES={
-intro:{msgs:[M('NON APRIRE.','them',650),M('Controlla la porta d’ingresso. Assicurati che sia chiusa.','them',650),M('TOC.  TOC.  TOC.','sys',1100)],choices:[
- C('Controllo che sia chiusa.','common_door',true),
+intro:{msgs:[M('NON APRIRE.','them',650),M('Controlla la porta d’ingresso. Assicurati che sia chiusa.','them',650)],choices:[
+ C('Controllo la porta.','common_door',true),
  C('“Chi sei?”','common_who'),
- C('Resto fermo e ascolto.','common_listen',true)
+ C('Ignoro il messaggio.','common_listen',true)
 ]},
-common_door:{msgs:[M('La porta è chiusa a chiave.','sys'),M('La maniglia resta immobile.','sys',500),M('Il telefono vibra di nuovo.','sys',650),M('Non guardare dallo spioncino.','them')],choices:[C('“Come fai a sapere dove sono?”','common_proof'),C('Mi allontano dalla porta.','common_shift',true)]},
-common_who:{msgs:[M('Se te lo dicessi adesso non mi crederesti.','them'),M('Prima ascolta.','them',450),M('TOC.  TOC.  TOC.','sys',850)],choices:[C('“Come fai a sapere dei colpi?”','common_proof'),C('Controllo la porta senza aprirla.','common_shift',true)]},
-common_listen:{msgs:[M('Non rispondi.','sys'),M('Dopo qualche secondo i tre colpi tornano.','sys',700),M('Questa volta, subito dopo, senti una vibrazione bassa. Non capisci se venga dal telefono o dalla casa.','sys',700)],choices:[C('Guardo il telefono.','common_proof',true),C('Cerco di capire da dove arriva il rumore.','common_shift',true)]},
+common_door:{msgs:[M('La porta è chiusa a chiave.','sys'),M('La maniglia resta immobile.','sys',500),M('TOC.  TOC.  TOC.','sys',950),M('Il telefono vibra di nuovo.','sys',650),M('Non guardare dallo spioncino.','them')],choices:[C('“Come fai a sapere dove sono?”','common_proof'),C('Mi allontano dalla porta.','common_shift',true)]},
+common_who:{msgs:[M('Non importa ancora.','them'),M('Tra poco sentirai tre colpi. Se la porta non è chiusa, non avremo molto tempo.','them',550),M('TOC.  TOC.  TOC.','sys',1050)],choices:[C('“Come fai a saperlo?”','common_proof'),C('Controllo la porta.','common_shift',true)]},
+common_listen:{msgs:[M('Lasci il telefono senza rispondere.','sys'),M('Per qualche secondo non succede nulla.','sys',700),M('TOC.  TOC.  TOC.','sys',950),M('Il telefono vibra di nuovo, anche se non hai aperto la conversazione.','sys',650)],choices:[C('Guardo il messaggio.','common_proof',true),C('Resto fermo e ascolto la casa.','common_shift',true)]},
 common_proof:{msgs:[M('Perché questa parte l’ho già vissuta.','them'),M('Tra poco sentirai qualcosa sopra di te.','them',600),M('SCRRRT.','sys',1000),M('Il rumore sembra quello di una sedia trascinata sul pavimento.','sys'),M('Ma sopra di te non c’è nessun piano.','sys',650)],choices:[C('Guardo verso il soffitto.','common_ceiling',true),C('Non guardo in alto. Controllo il corridoio.','common_hall',true)]},
 common_shift:{msgs:[M('Ti sposti dalla porta.','sys'),M('Il telefono perde completamente il segnale per un istante.','sys',600),M('Poi vibra.','sys',500),M('Non sono i messaggi a preoccuparmi. È quello che sta iniziando a rispondere.','them')],choices:[C('“Cosa sta rispondendo?”','common_hall'),C('Resto in silenzio e ascolto la casa.','common_ceiling',true)]},
 common_ceiling:{msgs:[M('Sul soffitto c’è una linea sottile che prima non avevi notato.','sys'),M('Non cade polvere. La linea avanza di pochi centimetri e si ferma.','sys',750),M('Nello stesso momento senti tre colpi provenire dalla parete del corridoio.','sys',750)],choices:[C('Mi allontano dal soffitto.','common_reveal',true),C('Controllo la parete da lontano.','common_reveal',true)]},
