@@ -85,7 +85,7 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 #overlay::before,#overlay::after{content:none!important;display:none!important;background:none!important;clip-path:none!important;}
 
 
-/* UI11 — glitch title + network status under 00:01 (Home only) */
+/* UI12 — complete Wi-Fi icon; UI11 glitch/network preserved */
 #overlay #ovTitle{overflow:visible!important;isolation:isolate;animation:homeGlitchJolt 6.8s infinite steps(1,end)}
 #overlay #ovTitle::before,#overlay #ovTitle::after{content:attr(data-text);position:absolute;inset:0;pointer-events:none;opacity:0}
 #overlay #ovTitle::before{color:#e9f8ff;text-shadow:-3px 0 #42d9ff;clip-path:inset(18% 0 58% 0);animation:homeGlitchA 6.8s infinite steps(1,end)}
@@ -95,9 +95,10 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 @keyframes homeGlitchJolt{0%,84%,87%,100%{transform:none}84.7%{transform:translateX(1px)}85.3%{transform:translateX(-2px)}86%{transform:translateX(1px)}}
 .homeNetwork{position:absolute!important;z-index:3!important;top:calc(27% + 94px)!important;left:50%!important;transform:translateX(-50%)!important;width:min(86vw,390px)!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:7px!important;color:rgba(244,241,238,.88)!important;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif!important;font-size:12px!important;line-height:1.2!important;text-align:center!important;text-shadow:0 1px 5px rgba(0,0,0,.9)!important}
 .homeNetwork>div{display:flex;align-items:center;justify-content:center;gap:8px}
-.wifiIcon{position:relative;width:22px;height:17px;font-size:0}
-.wifiIcon::before{content:"";position:absolute;left:1px;top:0;width:20px;height:13px;border:2px solid rgba(245,245,247,.9);border-left-color:transparent;border-right-color:transparent;border-bottom-color:transparent;border-radius:50%}
-.wifiIcon::after{content:"!";position:absolute;right:-4px;bottom:-2px;width:11px;height:11px;border-radius:50%;background:#e8e8ea;color:#151619;font:bold 8px/11px -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;text-shadow:none}
+.wifiIcon{position:relative;display:inline-block;width:28px;height:22px;flex:0 0 28px;font-size:0;overflow:visible}
+.wifiIcon svg{display:block;width:28px;height:22px;overflow:visible;fill:none;stroke:rgba(245,245,247,.95);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 3px rgba(0,0,0,.65))}
+.wifiIcon svg circle{fill:rgba(245,245,247,.95);stroke:none}
+.wifiIcon em{position:absolute;right:-5px;bottom:-4px;width:12px;height:12px;border-radius:50%;background:#e8e8ea;color:#151619;font-style:normal;font:bold 8px/12px -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;text-shadow:none;box-shadow:0 1px 3px rgba(0,0,0,.65)}
 .barsX{position:relative;display:inline-flex;align-items:flex-end;gap:2px;width:27px;height:18px;padding-right:3px}
 .barsX i{display:block;width:4px;background:#f0f0f2;border-radius:1px;box-shadow:0 1px 4px rgba(0,0,0,.55)}
 .barsX i:nth-child(1){height:6px}.barsX i:nth-child(2){height:9px}.barsX i:nth-child(3){height:13px}.barsX i:nth-child(4){height:17px}
