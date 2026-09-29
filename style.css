@@ -40,7 +40,7 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 #chat{background:linear-gradient(rgba(2,5,8,.58),rgba(2,5,8,.76)),url('./bg-chat.jpg') center/cover no-repeat}
 .chapterEnd{background:linear-gradient(to bottom,rgba(0,0,0,.12),rgba(0,0,0,.84) 74%),url('./bg-chapter.jpg') center top/cover no-repeat}
 
-/* UI5 exact approved concept assets */
+/* UI6 exact approved concept assets */
 #overlay{background-position:center center!important;}
 #chat{background-position:center center!important;}
 .chapterEnd{background-position:center top!important;min-height:72vh;}
