@@ -1,8 +1,9 @@
 'use strict';
 const $=s=>document.querySelector(s),chat=$('#chat'),choices=$('#choices'),clock=$('#clock');
-const KEY='nonaprire_v05_final';
+const KEY='nonaprire_v06_final';
+const META_KEY='nonaprire_meta_v06';
 const GAME_START=1*60, GAME_END=48*60, DURATION=(GAME_END-GAME_START)*1000;
-const fresh=()=>({v:5,started:false,alive:true,ending:false,startAt:0,scene:'intro',flags:{doorLocked:false,peeked:false,heardVoice:false,proofRequested:false,phoneClue:false,bedroomMarked:false,wallClue:false,callClue:false,stayedQuiet:false},items:[],history:[],loops:0});
+const fresh=()=>({v:6,started:false,alive:true,ending:false,startAt:0,scene:'intro',flags:{doorLocked:false,peeked:false,heardVoice:false,proofRequested:false,phoneClue:false,bedroomMarked:false,wallClue:false,callClue:false,stayedQuiet:false},items:[],history:[],loops:0});
 let S=fresh(),clockTimer=null,choiceTimer=null,deadlineTimer=null,busy=false;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(_){}}
 function scroll(){requestAnimationFrame(()=>chat.scrollTop=chat.scrollHeight)}
@@ -22,7 +23,7 @@ function endingText(){const f=S.flags,sc=S.scene;if(sc.includes('bedroom')||f.be
 async function deadlineDeath(){if(!S.started||!S.alive||S.ending)return;await die(endingText(),true)}
 async function die(text,deadline=false){if(S.ending)return;S.ending=true;S.alive=false;clearChoices();clearTimeout(deadlineTimer);save();await bubble(text,'sys',350);await new Promise(r=>setTimeout(r,1200));showBattery(deadline)}
 function showBattery(deadline){const o=$('#overlay');o.classList.remove('hidden');$('#start').classList.add('hidden');$('#notify').classList.add('hidden');$('#restart').classList.add('hidden');$('#battery').classList.remove('hidden');$('#ovTitle').textContent='BATTERIA';$('#ovText').textContent='SCARICA';let left=15;$('#ovSmall').textContent=`Il telefono si spegne tra ${left} secondi…`;const iv=setInterval(()=>{left--;$('#ovSmall').textContent=left>0?`Il telefono si spegne tra ${left} secondi…`:'…';if(left<=0){clearInterval(iv);setTimeout(autoReset,800)}},1000)}
-function autoReset(){const loops=(S.loops||0)+1;localStorage.removeItem(KEY);S=fresh();S.loops=loops;save();location.reload()}
+function autoReset(){const loops=(S.loops||0)+1;try{localStorage.setItem(META_KEY,JSON.stringify({loops}))}catch(_){} localStorage.removeItem(KEY);location.reload()}
 const scenes={
 intro:async()=>{await bubble('NON APRIRE.','them',650);await bubble('Controlla la porta d’ingresso. Assicurati che sia chiusa a chiave.','them',700);buttons([{label:'Chi sei?',run:()=>scene('whoEarly')},{label:'Perché?',run:()=>scene('why')},{label:'Controllo la porta.',action:true,run:()=>scene('doorCheck')},{label:'Ignoro il messaggio.',action:true,run:()=>scene('ignore')}])},
 whoEarly:async()=>{await bubble('Non importa ancora.','them',450);await bubble('Tra poco qualcuno busserà tre volte. Se la porta non è chiusa, non avremo una seconda conversazione.','them',650);buttons([{label:'Come fai a saperlo?',run:()=>scene('howKnow')},{label:'Controllo la porta.',action:true,run:()=>scene('doorCheck')},{label:'Non mi muovo.',action:true,run:()=>scene('ignore')}])},
@@ -80,8 +81,26 @@ afterCeiling:async()=>{await bubble('Ti sposti. La crepa smette di avanzare.','s
 let atmosphereTimers=[];
 function scheduleAtmosphere(){atmosphereTimers.forEach(clearTimeout);atmosphereTimers=[];const marks=[12,24,36,43];const texts=['Da qualche parte in casa, qualcosa trascina lentamente un oggetto sul pavimento.','Il telefono vibra senza mostrare alcun nuovo messaggio.','Per un istante senti una seconda vibrazione provenire dalla camera da letto.','NUMERO SCONOSCIUTO: «Qualunque cosa succeda tra poco, guarda dove sei. Ricordatelo.»'];marks.forEach((m,i)=>{const target=(m*60-GAME_START)*1000;const delay=target-elapsedMs();if(delay>0)atmosphereTimers.push(setTimeout(()=>{if(S.alive&&!S.ending)bubble(texts[i],i===3?'them':'sys')},delay))})}
 async function start(){if(S.started)return;S.started=true;S.startAt=Date.now();save();$('#overlay').classList.add('hidden');startClock();await scene('intro')}
-function manualReset(){localStorage.removeItem(KEY);location.reload()}
+function resetLoop(){
+  clearInterval(clockTimer); clearInterval(choiceTimer); clearTimeout(deadlineTimer); atmosphereTimers.forEach(clearTimeout); atmosphereTimers=[];
+  const loops=(S.loops||0)+1; try{localStorage.setItem(META_KEY,JSON.stringify({loops}))}catch(_){}
+  localStorage.removeItem(KEY); location.reload();
+}
+function resetAll(){
+  clearInterval(clockTimer); clearInterval(choiceTimer); clearTimeout(deadlineTimer); atmosphereTimers.forEach(clearTimeout); atmosphereTimers=[];
+  localStorage.removeItem(KEY); localStorage.removeItem(META_KEY); location.reload();
+}
+function manualReset(){resetLoop()}
+const menuPanel=$('#menuPanel'), confirmPanel=$('#confirmPanel'); let confirmAction=null;
+function openMenu(){menuPanel.classList.remove('hidden')}
+function closeMenu(){menuPanel.classList.add('hidden')}
+function askConfirm(kind){closeMenu();confirmAction=kind;$('#confirmTitle').textContent=kind==='all'?'CANCELLARE TUTTO?':'RIAVVIARE IL LOOP?';$('#confirmText').textContent=kind==='all'?'Questa operazione cancella anche i progressi conservati tra i loop. Non può essere annullata.':'Usalo se la partita sembra bloccata. I progressi di questo loop andranno persi.';$('#confirmYes').textContent=kind==='all'?'CANCELLA TUTTO':'RIAVVIA';confirmPanel.classList.remove('hidden')}
+$('#menuBtn').addEventListener('click',openMenu); $('#menuClose').addEventListener('click',closeMenu);
+$('#loopReset').addEventListener('click',()=>askConfirm('loop')); $('#fullReset').addEventListener('click',()=>askConfirm('all'));
+$('#confirmNo').addEventListener('click',()=>{confirmPanel.classList.add('hidden');confirmAction=null});
+$('#confirmYes').addEventListener('click',()=>{const a=confirmAction;confirmPanel.classList.add('hidden');confirmAction=null;if(a==='all')resetAll();else resetLoop()});
 $('#start').addEventListener('click',start);$('#restart').addEventListener('click',manualReset);$('#notify').addEventListener('click',async()=>{try{if(!('Notification'in window))throw 0;const p=await Notification.requestPermission();$('#notify').textContent=p==='granted'?'NOTIFICHE ATTIVE':'NOTIFICHE NON DISPONIBILI'}catch(_){$('#notify').textContent='NOTIFICHE NON DISPONIBILI'}});
 window.addEventListener('error',e=>{const d=document.createElement('div');d.className='msg sys danger';d.textContent='Errore interno: '+e.message;chat.appendChild(d)});
-try{const old=JSON.parse(localStorage.getItem(KEY));if(old&&old.v===5){S=old;if(S.started&&S.alive&&!S.ending){$('#overlay').classList.add('hidden');startClock();bubble('PARTITA RIPRISTINATA','sys').then(()=>scene(S.scene));if(S.scene==='hold')scheduleAtmosphere()}else if(S.ending||!S.alive){localStorage.removeItem(KEY);S=fresh()}}}catch(_){S=fresh()}
+try{const meta=JSON.parse(localStorage.getItem(META_KEY));if(meta&&Number.isFinite(meta.loops))S.loops=meta.loops}catch(_){}
+try{const old=JSON.parse(localStorage.getItem(KEY));if(old&&old.v===6){S=old;if(S.started&&S.alive&&!S.ending){$('#overlay').classList.add('hidden');startClock();bubble('PARTITA RIPRISTINATA','sys').then(()=>scene(S.scene));if(S.scene==='hold')scheduleAtmosphere()}else if(S.ending||!S.alive){localStorage.removeItem(KEY);S=fresh()}}}catch(_){S=fresh()}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').then(r=>r.update()).catch(()=>{});
