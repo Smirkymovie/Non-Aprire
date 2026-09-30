@@ -1,13 +1,23 @@
 'use strict';
 const $=s=>document.querySelector(s);
 const chat=$('#chat'), choices=$('#choices'), clock=$('#clock'), hubClock=$('#hubClock');
-const hubScreen=$('#hubScreen'), chatScreen=$('#chatScreen'), threadList=$('#threadList');
+const hubScreen=$('#hubScreen'), chatScreen=$('#chatScreen'), galleryScreen=$('#galleryScreen'), threadList=$('#threadList');
 const contactName=$('#contactName'), contactStatus=$('#status'), toast=$('#messageToast');
-const KEY='nonaprire_v09_state', META='nonaprire_v09_meta';
+const galleryFab=$('#galleryFab'), backGallery=$('#backGallery'), galleryGrid=$('#galleryGrid'), galleryEmpty=$('#galleryEmpty'), galleryClock=$('#galleryClock');
+const mediaViewer=$('#mediaViewer'), mediaFull=$('#mediaFull'), mediaTitle=$('#mediaTitle'), mediaMeta=$('#mediaMeta'), closeMedia=$('#closeMedia');
+const KEY='nonaprire_v09_state', META='nonaprire_v09_meta', GALLERY_KEY='nonaprire_v09_gallery';
 const START=60, END=48*60, LIMIT=(END-START)*1000;
 let S={started:false,alive:true,ending:false,chapterDone:false,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false};
 let clockTimer=null, deadlineTimer=null, busy=false, deathTimer=null, firstMessageTimer=null, toastTimer=null;
 const choiceState={};
+let unlockedMedia=[];
+try{const g=JSON.parse(localStorage.getItem(GALLERY_KEY));if(Array.isArray(g))unlockedMedia=g}catch(_){}
+const MEDIA_CATALOG={
+  window:{id:'window',src:'./scene-window.jpg',title:'Finestra',kind:'immagine ricevuta'}
+};
+function saveGallery(){try{localStorage.setItem(GALLERY_KEY,JSON.stringify(unlockedMedia))}catch(_){}}
+function unlockMedia(id,overrides={}){const base=MEDIA_CATALOG[id]||{id,...overrides};const item={...base,...overrides,id};if(!item.src)return false;if(!unlockedMedia.some(x=>x.id===id)){unlockedMedia.push({...item,unlockedAt:gameSec()});saveGallery();if(!galleryScreen.classList.contains('hidden'))renderGallery();return true}return false}
+window.unlockGameMedia=unlockMedia;
 try{const m=JSON.parse(localStorage.getItem(META));if(m&&Number.isFinite(m.loops))S.loops=m.loops}catch(_){}
 function normalizeState(){if(!S.threads||typeof S.threads!=='object')S.threads={};if(!('activeThread' in S))S.activeThread=null;if(!('storyBegun' in S))S.storyBegun=false;if(!('firstMessageSent' in S))S.firstMessageSent=false}
 normalizeState();
@@ -16,21 +26,28 @@ function elapsed(){return S.started?Math.max(0,Date.now()-S.startAt):0}
 function gameSec(){return Math.min(END,START+Math.floor(elapsed()/1000))}
 function fmt(n){const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return [h,m,s].map(x=>String(x).padStart(2,'0')).join(':')}
 function shortTime(n){const m=Math.floor(n%3600/60),s=n%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
-function updateClock(){const t=fmt(gameSec());if(clock)clock.textContent=t;if(hubClock)hubClock.textContent=t;if(S.started&&S.alive&&!S.ending&&!S.chapterDone&&elapsed()>=LIMIT)deadlineDeath()}
+function updateClock(){const t=fmt(gameSec());if(clock)clock.textContent=t;if(hubClock)hubClock.textContent=t;if(galleryClock)galleryClock.textContent=t;if(S.started&&S.alive&&!S.ending&&!S.chapterDone&&elapsed()>=LIMIT)deadlineDeath()}
 function startClock(){clearInterval(clockTimer);clearTimeout(deadlineTimer);clockTimer=setInterval(updateClock,250);deadlineTimer=setTimeout(deadlineDeath,Math.max(0,LIMIT-elapsed()+50));updateClock()}
 function stopTimers(){clearInterval(clockTimer);clearTimeout(deadlineTimer);clearTimeout(firstMessageTimer);if(deathTimer)clearInterval(deathTimer);clockTimer=deadlineTimer=deathTimer=firstMessageTimer=null}
 function scrollBottom(){requestAnimationFrame(()=>{if(chat)chat.scrollTop=chat.scrollHeight})}
 function makeThread(id,title,status='offline'){if(!S.threads[id])S.threads[id]={id,title,status,messages:[],unread:0,lastAt:gameSec()};return S.threads[id]}
-function messageEl(m){const d=document.createElement('div');d.className='msg '+(m.who||'sys');d.textContent=m.text;return d}
-function threadPreview(t){if(!t.messages.length)return 'Nuova conversazione';const m=t.messages[t.messages.length-1];return (m.who==='me'?'Tu: ':'')+m.text.replace(/\s+/g,' ').slice(0,90)}
+function mediaById(id){return unlockedMedia.find(x=>x.id===id)||MEDIA_CATALOG[id]||null}
+function messageEl(m){if(m.mediaId){const item=mediaById(m.mediaId);const wrap=document.createElement('button');wrap.type='button';wrap.className='msgMedia '+(m.who||'them');wrap.setAttribute('aria-label','Apri immagine '+((item&&item.title)||''));if(item){wrap.innerHTML='<img alt=""><span class="msgMediaMeta">📷 <b></b></span>';wrap.querySelector('img').src=item.src;wrap.querySelector('img').alt=item.title||'Immagine ricevuta';wrap.querySelector('b').textContent=item.title||'Foto';wrap.addEventListener('click',()=>openMedia(item))}return wrap}const d=document.createElement('div');d.className='msg '+(m.who||'sys');d.textContent=m.text;return d}
+function threadPreview(t){if(!t.messages.length)return 'Nuova conversazione';const m=t.messages[t.messages.length-1];if(m.mediaId)return (m.who==='me'?'Tu: ':'')+'📷 Foto';return (m.who==='me'?'Tu: ':'')+(m.text||'').replace(/\s+/g,' ').slice(0,90)}
 function renderHub(){threadList.replaceChildren();const arr=Object.values(S.threads).sort((a,b)=>(b.lastAt||0)-(a.lastAt||0));if(!arr.length){const e=document.createElement('div');e.id='emptyHub';e.className='emptyHub';e.innerHTML='<span class="emptyHubIcon" aria-hidden="true">•••</span><strong>Nessuna conversazione</strong><small>I nuovi messaggi compariranno qui.</small>';threadList.appendChild(e);return}for(const t of arr){const b=document.createElement('button');b.type='button';b.className='threadRow';b.dataset.thread=t.id;const unread=t.unread?'<span class="unreadBadge">'+Math.min(99,t.unread)+'</span>':'<span class="threadChevron">›</span>';b.innerHTML='<span class="threadAvatar" aria-hidden="true"></span><span class="threadMain"><span class="threadTop"><span class="threadName"></span><span class="threadTime"></span></span><span class="threadPreview"></span></span><span class="threadMeta">'+unread+'</span>';b.querySelector('.threadName').textContent=t.title;b.querySelector('.threadTime').textContent=shortTime(t.lastAt||gameSec());b.querySelector('.threadPreview').textContent=threadPreview(t);b.addEventListener('click',()=>openThread(t.id));threadList.appendChild(b)}}
+function renderGallery(){galleryGrid.replaceChildren();if(!unlockedMedia.length){galleryEmpty.classList.remove('hidden');return}galleryEmpty.classList.add('hidden');for(const item of unlockedMedia.slice().reverse()){const b=document.createElement('button');b.type='button';b.className='galleryTile';b.innerHTML='<img alt=""><span class="galleryBadge"></span>';const img=b.querySelector('img');img.src=item.src;img.alt=item.title||'Immagine sbloccata';b.querySelector('.galleryBadge').textContent=item.kind||'foto';b.addEventListener('click',()=>openMedia(item));galleryGrid.appendChild(b)}}
+function openGallery(){S.activeThread=null;chatScreen.classList.add('hidden');hubScreen.classList.add('hidden');galleryScreen.classList.remove('hidden');renderGallery();updateClock();save()}
+function openMedia(item){mediaFull.src=item.src;mediaFull.alt=item.title||'Immagine';mediaTitle.textContent=item.title||'Immagine';mediaMeta.textContent=((item.kind||'foto')+(Number.isFinite(item.unlockedAt)?' · '+shortTime(item.unlockedAt):''));mediaViewer.classList.remove('hidden')}
+function closeMediaViewer(){mediaViewer.classList.add('hidden');mediaFull.removeAttribute('src');mediaTitle.textContent='';mediaMeta.textContent=''}
 function renderChoiceDOM(list){choices.replaceChildren();if(!list||S.ending||S.chapterDone)return;for(const c of list){const b=document.createElement('button');b.type='button';b.className='choice '+(c.action?'action':'');b.textContent=c.label;b.addEventListener('click',()=>pick(c),{once:true});choices.appendChild(b)}}
 function renderThread(id){const t=S.threads[id];if(!t)return;chat.replaceChildren();for(const m of t.messages)chat.appendChild(messageEl(m));contactName.textContent=t.title;contactStatus.textContent=t.status||'offline';renderChoiceDOM(choiceState[id]||[]);scrollBottom()}
-function openHub(){S.activeThread=null;chatScreen.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();save()}
-function openThread(id){const t=S.threads[id];if(!t)return;S.activeThread=id;t.unread=0;hubScreen.classList.add('hidden');chatScreen.classList.remove('hidden');renderThread(id);save();if(id==='unknown'&&!S.storyBegun&&!S.ending&&!S.chapterDone){S.storyBegun=true;save();setTimeout(()=>go('intro'),260)}}
+function openHub(){S.activeThread=null;chatScreen.classList.add('hidden');galleryScreen.classList.add('hidden');mediaViewer.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();save()}
+function openThread(id){const t=S.threads[id];if(!t)return;S.activeThread=id;t.unread=0;hubScreen.classList.add('hidden');galleryScreen.classList.add('hidden');mediaViewer.classList.add('hidden');chatScreen.classList.remove('hidden');renderThread(id);save();if(id==='unknown'&&!S.storyBegun&&!S.ending&&!S.chapterDone){S.storyBegun=true;save();setTimeout(()=>go('intro'),260)}}
 function showToast(t,m){if(S.activeThread===t.id||!S.started)return;clearTimeout(toastTimer);toast.innerHTML='<strong></strong><span></span>';toast.querySelector('strong').textContent=t.title;toast.querySelector('span').textContent=m.text;toast.classList.remove('hidden');toastTimer=setTimeout(()=>toast.classList.add('hidden'),2400)}
 function pushMessage(threadId,text,who='sys'){const t=makeThread(threadId,threadId==='unknown'?'NUMERO SCONOSCIUTO':threadId,'offline');const m={text,who,at:gameSec()};t.messages.push(m);t.lastAt=m.at;if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){chat.appendChild(messageEl(m));scrollBottom()}else{t.unread=(t.unread||0)+1;renderHub();showToast(t,m)}save();return m}
 function add(text,who='sys',delay=0,threadId='unknown'){return new Promise(resolve=>setTimeout(()=>{if(text)pushMessage(threadId,text,who);resolve()},delay))}
+function pushImageMessage(threadId,id,overrides={},who='them'){unlockMedia(id,overrides);const item=mediaById(id);if(!item)return null;const t=makeThread(threadId,threadId==='unknown'?'NUMERO SCONOSCIUTO':threadId,'offline');const m={mediaId:id,who,at:gameSec()};t.messages.push(m);t.lastAt=m.at;if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){chat.appendChild(messageEl(m));scrollBottom()}else{t.unread=(t.unread||0)+1;renderHub();showToast(t,{text:'📷 Foto'})}save();return m}
+window.sendGameImage=pushImageMessage;
 function clearChoices(threadId='unknown'){choiceState[threadId]=[];if(S.activeThread===threadId)choices.replaceChildren()}
 function renderChoices(list,threadId='unknown'){choiceState[threadId]=list||[];if(S.activeThread===threadId)renderChoiceDOM(choiceState[threadId])}
 async function pick(c){if(busy||S.ending||S.chapterDone)return;busy=true;const threadId=S.activeThread||'unknown';const label=c.label;clearChoices(threadId);S.history.push({node:S.node,choice:label,at:gameSec(),thread:threadId});save();await add(label,'me',0,threadId);if(c.death){busy=false;return die(c.death)}if(c.end){busy=false;return chapterEnd()}busy=false;return go(c.next)}
@@ -41,7 +58,7 @@ async function deadlineDeath(){if(!S.started||!S.alive||S.ending||S.chapterDone)
 async function die(text){if(S.ending||S.chapterDone)return;S.ending=true;S.alive=false;clearChoices('unknown');clearTimeout(deadlineTimer);save();if(S.threads.unknown)openThread('unknown');await add(text,'sys',450,'unknown');const box=document.createElement('div');box.className='deadBattery';box.innerHTML='<div class="deadBatteryRow"><span class="deadBatteryIcon" aria-hidden="true">🪫</span><div><strong>BATTERIA SCARICA</strong><span>0%</span></div></div><p class="deathCountdown">Il loop ricomincia tra <b>15</b> secondi…</p><small>Puoi scorrere la chat e rileggere cosa è successo.</small>';chat.appendChild(box);scrollBottom();let left=15;const n=box.querySelector('b');deathTimer=setInterval(()=>{left--;if(n)n.textContent=Math.max(0,left);if(left<=0){clearInterval(deathTimer);deathTimer=null;resetLoop()}},1000)}
 async function chapterEnd(){if(S.chapterDone||S.ending)return;S.chapterDone=true;clearChoices('unknown');stopTimers();save();if(S.threads.unknown)openThread('unknown');await add('Il telefono smette di vibrare. Per la prima volta dall’inizio della notte, il silenzio non sembra una minaccia.','sys',600,'unknown');const box=document.createElement('div');box.className='chapterEnd';box.innerHTML='<strong>CAPITOLO 1 COMPLETATO</strong><p>Hai raggiunto la fine del contenuto disponibile.</p><small>Il Capitolo 2 è ancora in sviluppo.</small>';chat.appendChild(box);scrollBottom();const b=document.createElement('button');b.type='button';b.className='choice';b.textContent='RICOMINCIA IL CAPITOLO 1';b.addEventListener('click',resetLoop,{once:true});choices.appendChild(b)}
 function resetLoop(){stopTimers();const loops=(S.loops||0)+1;try{localStorage.setItem(META,JSON.stringify({loops}))}catch(_){}localStorage.removeItem(KEY);location.reload()}
-function resetAll(){stopTimers();localStorage.removeItem(KEY);localStorage.removeItem(META);location.reload()}
+function resetAll(){stopTimers();localStorage.removeItem(KEY);localStorage.removeItem(META);localStorage.removeItem(GALLERY_KEY);location.reload()}
 const C=(label,next,action=false)=>({label,next,action});
 const D=(label,death,action=true)=>({label,death,action});
 const M=(text,who='sys',delay=420)=>({text,who,delay});
@@ -98,12 +115,13 @@ mirror_truth:{msgs:[M('Non lo so ancora.','them'),M('Ma questa foto non esiste n
 mirror_close:{msgs:[M('Blocchi lo schermo.','sys'),M('Quando lo riaccendi, la foto è ancora lì.','sys',650),M('Nello specchio, invece, la seconda frase è scomparsa.','sys')],end:true}
 };
 async function deliverFirstMessage(){if(!S.started||S.firstMessageSent||S.ending||S.chapterDone)return;S.firstMessageSent=true;const t=makeThread('unknown','NUMERO SCONOSCIUTO','offline');save();try{if(navigator.vibrate)navigator.vibrate([70,45,70])}catch(_){}await add('NON APRIRE.','them',0,'unknown');renderHub()}
-async function start(){if(S.started)return;S.started=true;S.startAt=Date.now();S.activeThread=null;S.storyBegun=false;S.firstMessageSent=false;S.threads={};save();$('#overlay').classList.add('hidden');chatScreen.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();startClock();firstMessageTimer=setTimeout(deliverFirstMessage,3000)}
+async function start(){if(S.started)return;S.started=true;S.startAt=Date.now();S.activeThread=null;S.storyBegun=false;S.firstMessageSent=false;S.threads={};save();$('#overlay').classList.add('hidden');chatScreen.classList.add('hidden');galleryScreen.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();startClock();firstMessageTimer=setTimeout(deliverFirstMessage,3000)}
 const menuPanel=$('#menuPanel'),confirmPanel=$('#confirmPanel');let confirmAction=null;
 function openMenu(){menuPanel.classList.remove('hidden')}
 $('#menuBtn').addEventListener('click',openMenu);$('#hubMenuBtn').addEventListener('click',openMenu);
 $('#menuClose').addEventListener('click',()=>menuPanel.classList.add('hidden'));
 $('#backHub').addEventListener('click',openHub);
+galleryFab.addEventListener('click',openGallery);backGallery.addEventListener('click',openHub);closeMedia.addEventListener('click',closeMediaViewer);mediaViewer.addEventListener('click',e=>{if(e.target===mediaViewer||e.target===mediaFull)closeMediaViewer()});window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!mediaViewer.classList.contains('hidden'))closeMediaViewer()});
 function ask(kind){menuPanel.classList.add('hidden');confirmAction=kind;$('#confirmTitle').textContent=kind==='all'?'CANCELLARE TUTTO?':'RIAVVIARE IL LOOP?';$('#confirmText').textContent=kind==='all'?'Cancella anche i progressi conservati tra i loop. Non può essere annullato.':'Usalo se la partita sembra bloccata. Il loop corrente ripartirà dalle 00:01:00.';$('#confirmYes').textContent=kind==='all'?'CANCELLA TUTTO':'RIAVVIA';confirmPanel.classList.remove('hidden')}
 $('#loopReset').addEventListener('click',()=>ask('loop'));$('#fullReset').addEventListener('click',()=>ask('all'));
 $('#confirmNo').addEventListener('click',()=>{confirmPanel.classList.add('hidden');confirmAction=null});
