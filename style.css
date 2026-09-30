@@ -105,7 +105,7 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 .barsX b{position:absolute;right:-6px;top:-7px;color:#ff453a;font:300 28px/1 -apple-system,BlinkMacSystemFont,sans-serif;transform:rotate(2deg);text-shadow:0 1px 4px rgba(0,0,0,.8)}
 @media (max-height:700px){.homeNetwork{top:calc(27% + 82px)!important;font-size:11px!important}}
 
-/* UI15 — HUB CONVERSAZIONI */
+/* UI16 — HUB CONVERSAZIONI */
 .appShell{display:block;position:relative;background:#000}
 .appScreen{position:absolute;inset:0;display:flex;flex-direction:column;min-height:0;width:100%;overflow:hidden}
 .appScreen.hidden{display:none!important}
@@ -144,3 +144,21 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 .messageToast strong{display:block;font-size:11px;letter-spacing:.04em;color:#f2f2f4;margin-bottom:2px}
 .messageToast span{display:block;color:#9da1a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* UI16 — fix header layout after Hub introduction */
+.hubHeader::before,
+.chatHeader::before{
+  content:none!important;
+  display:none!important;
+}
+.chatHeader{
+  display:grid!important;
+  grid-template-columns:38px minmax(0,1fr) auto!important;
+  align-items:center!important;
+  justify-content:stretch!important;
+  column-gap:8px!important;
+}
+.chatHeader .backHub{grid-column:1;justify-self:start}
+.chatHeader .contact{grid-column:2;min-width:0!important;width:auto!important;overflow:hidden}
+.chatHeader .headRight{grid-column:3;justify-self:end!important;display:flex!important;align-items:center!important;gap:4px!important;min-width:max-content}
+.chatHeader #clock{white-space:nowrap}
