@@ -4,7 +4,7 @@ const chat=$('#chat'), choices=$('#choices'), clock=$('#clock'), hubClock=$('#hu
 const hubScreen=$('#hubScreen'), chatScreen=$('#chatScreen'), galleryScreen=$('#galleryScreen'), threadList=$('#threadList');
 const contactName=$('#contactName'), contactStatus=$('#status'), toast=$('#messageToast'), headerAvatar=document.querySelector('.chatHeader .avatar');
 const galleryFab=$('#galleryFab'), backGallery=$('#backGallery'), galleryGrid=$('#galleryGrid'), galleryEmpty=$('#galleryEmpty'), galleryClock=$('#galleryClock');
-const mediaViewer=$('#mediaViewer'), mediaFull=$('#mediaFull'), mediaTitle=$('#mediaTitle'), mediaMeta=$('#mediaMeta'), closeMedia=$('#closeMedia');
+const mediaViewer=$('#mediaViewer'), mediaFull=$('#mediaFull'), mediaAudio=$('#mediaAudio'), audioViewerCard=$('#audioViewerCard'), audioViewerDuration=$('#audioViewerDuration'), mediaTitle=$('#mediaTitle'), mediaMeta=$('#mediaMeta'), closeMedia=$('#closeMedia');
 const KEY='nonaprire_v10_state', META='nonaprire_v10_meta', GALLERY_KEY='nonaprire_v10_gallery';
 const START=60, END=48*60, LIMIT=(END-START)*1000;
 let S={started:false,alive:true,ending:false,chapterDone:false,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false};
@@ -17,9 +17,11 @@ const THREAD_META={
   anomaly:{title:'⌁¤⊘//?⌁',status:'online',avatar:'glitch'}
 };
 const MEDIA_CATALOG={
-  window:{id:'window',src:'./scene-window.jpg',title:'Finestra',kind:'immagine ricevuta'},
-  entry_photo_1:{id:'entry_photo_1',src:'./entry-photo-1.png',title:'Foto 1',kind:'immagine ricevuta'},
-  entry_photo_2:{id:'entry_photo_2',src:'./entry-photo-2.png',title:'Foto 2',kind:'immagine ricevuta'}
+  window:{id:'window',src:'./scene-window.jpg',title:'Finestra',kind:'immagine ricevuta',mediaType:'image'},
+  entry_photo_1:{id:'entry_photo_1',src:'./entry-photo-1.png',title:'Foto 1',kind:'immagine ricevuta',mediaType:'image'},
+  entry_photo_2:{id:'entry_photo_2',src:'./entry-photo-2.png',title:'Foto 2',kind:'immagine ricevuta',mediaType:'image'},
+  breath_20260929:{id:'breath_20260929',src:'./respiro_00_03.wav',title:'Registrazione',kind:'audio registrato',mediaType:'audio',dateLabel:'2026-09-29',durationLabel:'-00:03'},
+  breath_20260930:{id:'breath_20260930',src:'./respiro_00_03.wav',title:'Registrazione',kind:'audio ricevuto',mediaType:'audio',dateLabel:'2026-09-30',durationLabel:'-00:03'}
 };
 function saveGallery(){try{localStorage.setItem(GALLERY_KEY,JSON.stringify(unlockedMedia))}catch(_){}}
 function unlockMedia(id,overrides={}){const base=MEDIA_CATALOG[id]||{id,...overrides};const item={...base,...overrides,id};if(!item.src)return false;if(!unlockedMedia.some(x=>x.id===id)){unlockedMedia.push({...item,unlockedAt:gameSec()});saveGallery();if(!galleryScreen.classList.contains('hidden'))renderGallery();return true}return false}
@@ -58,13 +60,36 @@ function deliverAnomalyPhoto(which='entry_photo_1'){
   pushImageMessage('anomaly',which,{title:item.title,kind:item.kind},'them');
   return true;
 }
-function messageEl(m){if(m.mediaId){const item=mediaById(m.mediaId);const wrap=document.createElement('button');wrap.type='button';wrap.className='msgMedia '+(m.who||'them');wrap.setAttribute('aria-label','Apri immagine '+((item&&item.title)||''));if(item){wrap.innerHTML='<img alt=""><span class="msgMediaMeta">📷 <b></b></span>';wrap.querySelector('img').src=item.src;wrap.querySelector('img').alt=item.title||'Immagine ricevuta';wrap.querySelector('b').textContent=item.title||'Foto';wrap.addEventListener('click',()=>openMedia(item))}return wrap}const d=document.createElement('div');d.className='msg '+(m.who||'sys');d.textContent=m.text;return d}
-function threadPreview(t){if(!t.messages.length)return 'Nuova conversazione';const m=t.messages[t.messages.length-1];if(m.mediaId)return (m.who==='me'?'Tu: ':'')+'📷 Foto';return (m.who==='me'?'Tu: ':'')+(m.text||'').replace(/\s+/g,' ').slice(0,90)}
+function messageEl(m){
+  if(m.mediaId){
+    const item=mediaById(m.mediaId);
+    if(item&&item.mediaType==='audio'){
+      const wrap=document.createElement('div');
+      wrap.className='msgAudio '+(m.who||'them');
+      wrap.innerHTML='<div class="audioTop"><span class="audioGlyph">◉</span><strong></strong><span class="audioDuration"></span></div><audio controls preload="metadata"></audio><div class="audioDate"></div>';
+      wrap.querySelector('strong').textContent=item.title||'Registrazione';
+      wrap.querySelector('.audioDuration').textContent=item.durationLabel||'-00:03';
+      wrap.querySelector('.audioDate').textContent=item.dateLabel||'';
+      const audio=wrap.querySelector('audio');audio.src=item.src;audio.setAttribute('aria-label',(item.title||'Audio')+' '+(item.dateLabel||''));
+      return wrap;
+    }
+    const wrap=document.createElement('button');wrap.type='button';wrap.className='msgMedia '+(m.who||'them');wrap.setAttribute('aria-label','Apri immagine '+((item&&item.title)||''));if(item){wrap.innerHTML='<img alt=""><span class="msgMediaMeta">📷 <b></b></span>';wrap.querySelector('img').src=item.src;wrap.querySelector('img').alt=item.title||'Immagine ricevuta';wrap.querySelector('b').textContent=item.title||'Foto';wrap.addEventListener('click',()=>openMedia(item))}return wrap
+  }
+  const d=document.createElement('div');d.className='msg '+(m.who||'sys');d.textContent=m.text;return d
+}
+function threadPreview(t){if(!t.messages.length)return 'Nuova conversazione';const m=t.messages[t.messages.length-1];if(m.mediaId){const item=mediaById(m.mediaId);return (m.who==='me'?'Tu: ':'')+((item&&item.mediaType==='audio')?'🎧 Audio':'📷 Foto')}return (m.who==='me'?'Tu: ':'')+(m.text||'').replace(/\s+/g,' ').slice(0,90)}
 function renderHub(){threadList.replaceChildren();const arr=Object.values(S.threads).sort((a,b)=>(b.lastAt||0)-(a.lastAt||0));if(!arr.length){const e=document.createElement('div');e.id='emptyHub';e.className='emptyHub';e.innerHTML='<span class="emptyHubIcon" aria-hidden="true">•••</span><strong>Nessuna conversazione</strong><small>I nuovi messaggi compariranno qui.</small>';threadList.appendChild(e);return}for(const t of arr){const b=document.createElement('button');b.type='button';b.className='threadRow';b.dataset.thread=t.id;const unread=t.unread?'<span class="unreadBadge">'+Math.min(99,t.unread)+'</span>':'<span class="threadChevron">›</span>';b.innerHTML='<span class="threadAvatar" aria-hidden="true"></span><span class="threadMain"><span class="threadTop"><span class="threadName"></span><span class="threadTime"></span></span><span class="threadPreview"></span></span><span class="threadMeta">'+unread+'</span>';const avatarEl=b.querySelector('.threadAvatar');if(t.avatar==='glitch')avatarEl.classList.add('glitch');b.querySelector('.threadName').textContent=t.title;b.querySelector('.threadTime').textContent=shortTime(t.lastAt||gameSec());b.querySelector('.threadPreview').textContent=threadPreview(t);b.addEventListener('click',()=>openThread(t.id));threadList.appendChild(b)}}
-function renderGallery(){galleryGrid.replaceChildren();if(!unlockedMedia.length){galleryEmpty.classList.remove('hidden');return}galleryEmpty.classList.add('hidden');for(const item of unlockedMedia.slice().reverse()){const b=document.createElement('button');b.type='button';b.className='galleryTile';b.innerHTML='<img alt=""><span class="galleryBadge"></span>';const img=b.querySelector('img');img.src=item.src;img.alt=item.title||'Immagine sbloccata';b.querySelector('.galleryBadge').textContent=item.kind||'foto';b.addEventListener('click',()=>openMedia(item));galleryGrid.appendChild(b)}}
+function renderGallery(){galleryGrid.replaceChildren();if(!unlockedMedia.length){galleryEmpty.classList.remove('hidden');return}galleryEmpty.classList.add('hidden');for(const item of unlockedMedia.slice().reverse()){const b=document.createElement('button');b.type='button';b.className='galleryTile'+(item.mediaType==='audio'?' audioTile':'');if(item.mediaType==='audio'){b.innerHTML='<span class="galleryAudioIcon">◉</span><strong class="galleryAudioTitle"></strong><small class="galleryAudioDate"></small><span class="galleryBadge"></span>';b.querySelector('.galleryAudioTitle').textContent=item.durationLabel||'-00:03';b.querySelector('.galleryAudioDate').textContent=item.dateLabel||''}else{b.innerHTML='<img alt=""><span class="galleryBadge"></span>';const img=b.querySelector('img');img.src=item.src;img.alt=item.title||'Immagine sbloccata'}b.querySelector('.galleryBadge').textContent=item.kind||'file';b.addEventListener('click',()=>openMedia(item));galleryGrid.appendChild(b)}}
 function openGallery(){S.activeThread=null;chatScreen.classList.add('hidden');hubScreen.classList.add('hidden');galleryScreen.classList.remove('hidden');renderGallery();updateClock();save()}
-function openMedia(item){mediaFull.src=item.src;mediaFull.alt=item.title||'Immagine';mediaTitle.textContent=item.title||'Immagine';mediaMeta.textContent=((item.kind||'foto')+(Number.isFinite(item.unlockedAt)?' · '+shortTime(item.unlockedAt):''));mediaViewer.classList.remove('hidden')}
-function closeMediaViewer(){mediaViewer.classList.add('hidden');mediaFull.removeAttribute('src');mediaTitle.textContent='';mediaMeta.textContent=''}
+function openMedia(item){
+  const isAudio=item.mediaType==='audio';
+  mediaFull.classList.toggle('hidden',isAudio);audioViewerCard.classList.toggle('hidden',!isAudio);
+  if(isAudio){mediaFull.removeAttribute('src');mediaAudio.src=item.src;audioViewerDuration.textContent=item.durationLabel||'-00:03'}else{mediaAudio.pause();mediaAudio.removeAttribute('src');mediaFull.src=item.src;mediaFull.alt=item.title||'Immagine'}
+  mediaTitle.textContent=item.title|| (isAudio?'Audio':'Immagine');
+  const date=item.dateLabel?(' · '+item.dateLabel):'';mediaMeta.textContent=(item.kind||'file')+date;
+  mediaViewer.classList.remove('hidden')
+}
+function closeMediaViewer(){mediaViewer.classList.add('hidden');mediaAudio.pause();mediaAudio.removeAttribute('src');mediaFull.removeAttribute('src');mediaTitle.textContent='';mediaMeta.textContent=''}
 function renderChoiceDOM(list){choices.replaceChildren();if(!list||S.ending||S.chapterDone)return;for(const c of list){const b=document.createElement('button');b.type='button';b.className='choice '+(c.action?'action':'');b.textContent=c.label;b.addEventListener('click',()=>pick(c),{once:true});choices.appendChild(b)}}
 function renderThread(id){const t=S.threads[id];if(!t)return;chat.replaceChildren();for(const m of t.messages)chat.appendChild(messageEl(m));applyThreadIdentity(t);renderChoiceDOM(choiceState[id]||[]);scrollBottom()}
 function openHub(){S.activeThread=null;chatScreen.classList.add('hidden');galleryScreen.classList.add('hidden');mediaViewer.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();save()}
@@ -86,6 +111,8 @@ function pushMessage(threadId,text,who='sys'){const t=makeThread(threadId);const
 function add(text,who='sys',delay=0,threadId='unknown'){return new Promise(resolve=>setTimeout(()=>{if(text)pushMessage(threadId,text,who);resolve()},delay))}
 function pushImageMessage(threadId,id,overrides={},who='them'){unlockMedia(id,overrides);const item=mediaById(id);if(!item)return null;const t=makeThread(threadId);const m={mediaId:id,who,at:gameSec()};t.messages.push(m);t.lastAt=m.at;if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){chat.appendChild(messageEl(m));scrollBottom()}else{t.unread=(t.unread||0)+1;renderHub();showToast(t,{text:'Ti ha inviato una nuova foto.'})}save();return m}
 window.sendGameImage=pushImageMessage;
+function pushAudioMessage(threadId,id,overrides={},who='them'){unlockMedia(id,overrides);const item=mediaById(id);if(!item)return null;const t=makeThread(threadId);const m={mediaId:id,who,at:gameSec()};t.messages.push(m);t.lastAt=m.at;if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){chat.appendChild(messageEl(m));scrollBottom()}else{t.unread=(t.unread||0)+1;renderHub();showToast(t,{text:'Ti ha inviato un nuovo audio.'})}save();return m}
+window.sendGameAudio=pushAudioMessage;
 function clearChoices(threadId='unknown'){choiceState[threadId]=[];if(S.activeThread===threadId)choices.replaceChildren()}
 function renderChoices(list,threadId='unknown'){choiceState[threadId]=list||[];if(S.activeThread===threadId)renderChoiceDOM(choiceState[threadId])}
 async function pick(c){if(busy||S.ending||S.chapterDone)return;busy=true;const threadId=S.activeThread||'unknown';const label=c.label;clearChoices(threadId);S.history.push({node:S.node,choice:label,at:gameSec(),thread:threadId});save();await add(label,'me',0,threadId);if(c.death){busy=false;return die(c.death)}if(c.run){busy=false;return c.run()}if(c.end){busy=false;return chapterEnd()}busy=false;return go(c.next)}
@@ -133,8 +160,9 @@ entry_truth:{msgs:[M('Non lo so ancora.','them'),M('So solo che quel numero non 
 entry_close:{msgs:[M('La fotografia resta nella galleria.','sys'),M('Quando torni alla chat, il numero sconosciuto non è più online.','sys',650),M('La porta rimane chiusa. Per ora.','sys')],end:true},
 listen_final:{msgs:[M('Rimani fermo.','sys'),M('Senti due respirazioni: la tua e una seconda, sincronizzata con mezzo secondo di ritardo.','sys',750),M('Quando trattieni il fiato, l’altra continua.','sys',650)],choices:[C('Registro il suono con il telefono.','listen_evidence',true),D('Chiamo ad alta voce chiunque sia lì.','La seconda respirazione si interrompe. Una voce, vicinissima al tuo orecchio, risponde: «Eccomi.»'),C('Resto immobile e continuo ad ascoltare.','listen_deeper',true)]},
 listen_deeper:{msgs:[M('Non ti muovi.','sys'),M('La seconda respirazione si allontana di qualche passo.','sys',650),M('Poi senti la tua voce, molto più avanti nel corridoio, sussurrare: «Registrami.»','sys',700)],choices:[C('Avvio la registrazione senza parlare.','listen_evidence',true),D('Seguo la mia voce nel buio.','Fai tre passi. Al quarto, il pavimento sotto il piede non c’è più. Eppure il corridoio davanti a te continua.') ]},
-listen_evidence:{msgs:[M('Avvii la registrazione.','sys'),M('Sul display l’onda sonora continua anche quando la casa è completamente silenziosa.','sys',650),M('Il file si salva con una durata impossibile: -00:01.','sys',650),M('Il numero sconosciuto ti invia lo stesso audio. Il suo file è datato domani.','them')],choices:[C('“L’hai già sentito?”','listen_truth'),C('“Perché la durata è negativa?”','listen_truth')]},
-listen_truth:{msgs:[M('Perché non sta registrando quello che succede adesso.','them'),M('Sta registrando qualcosa che deve ancora arrivare.','them',650),M('Conservalo. Se ricominci, ascoltalo prima che la casa diventi silenziosa.','them')],choices:[C('Salvo il file.','listen_close',true)]},
+listen_evidence:{msgs:[M('Avvii la registrazione.','sys')],effect:async()=>{pushAudioMessage('unknown','breath_20260929',{},'sys');await new Promise(r=>setTimeout(r,650));await add('Sul display l’onda sonora continua anche quando la casa è completamente silenziosa.','sys',0,'unknown');await add('Il file si salva con una durata impossibile: -00:03.','sys',650,'unknown');await new Promise(r=>setTimeout(r,500));pushAudioMessage('unknown','breath_20260930',{},'them')},choices:[C('“L’hai già sentito?”','listen_truth_heard'),C('“Perché la durata è negativa?”','listen_truth')]},
+listen_truth_heard:{msgs:[M('Sì, perché è lo stesso audio.','them'),M('Perché non sta registrando quello che accade adesso.','them',650),M('Sta registrando qualcosa che deve ancora arrivare.','them',650),M('Conservalo. Se ricominci, ascoltalo prima che la casa diventi silenziosa.','them')],choices:[C('Salvo il file.','listen_close',true)]},
+listen_truth:{msgs:[M('Perché non sta registrando quello che accade adesso.','them'),M('Sta registrando qualcosa che deve ancora arrivare.','them',650),M('Conservalo. Se ricominci, ascoltalo prima che la casa diventi silenziosa.','them')],choices:[C('Salvo il file.','listen_close',true)]},
 listen_close:{msgs:[M('Metti il telefono in tasca senza interrompere la registrazione.','sys'),M('Per la prima volta la seconda respirazione si ferma.','sys',700),M('Il corridoio resta buio, ma non sei più costretto a seguirlo.','sys')],end:true},
 room_final:{msgs:[M('Torni davanti alla camera. Il secondo telefono non è più sul letto.','sys'),M('Adesso è sul pavimento del corridoio, alle tue spalle.','sys',700)],choices:[C('Non lo tocco. Scatto una foto.','room_evidence',true),D('Raccolgo il secondo telefono.','Lo schermo mostra la tua chat un messaggio avanti. Leggi: «Non raccoglierlo.» Poi senti le dita chiudersi attorno al tuo polso.'),C('Resto sulla soglia e osservo lo schermo da lontano.','room_watch',true)]},
 room_watch:{msgs:[M('Lo schermo del secondo telefono si accende.','sys'),M('La chat scorre da sola fino a un messaggio che sul tuo telefono non esiste.','sys',650),M('«NON ENTRARE QUANDO IL LETTO È VUOTO.»','sys',650),M('Alzi gli occhi. Sul letto adesso non c’è più nemmeno la tua ombra.','sys')],choices:[C('Scatto una foto senza entrare.','room_evidence',true),D('Entro per controllare sotto il letto.','Ti chini. Sotto il letto vedi il corridoio di casa tua, ma dall’altra parte qualcuno è già inginocchiato e ti sta guardando.') ]},
