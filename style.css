@@ -247,3 +247,6 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 
 /* UI24 — remove legacy phantom arrow from Gallery header */
 .galleryHeader::before{content:none!important;display:none!important;}
+
+/* UI27 - robust chat photo rendering */
+.msgMedia.mediaLoadError{min-height:160px;background:#18191c}.msgMedia.mediaLoadError img{display:none}.msgMedia.mediaLoadError .msgMediaMeta{top:0;bottom:0;display:flex;align-items:center;justify-content:center;background:none;text-align:center}
