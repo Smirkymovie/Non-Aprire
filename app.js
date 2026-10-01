@@ -5,9 +5,10 @@ const hubScreen=$('#hubScreen'), chatScreen=$('#chatScreen'), galleryScreen=$('#
 const contactName=$('#contactName'), contactStatus=$('#status'), toast=$('#messageToast'), headerAvatar=document.querySelector('.chatHeader .avatar');
 const galleryFab=$('#galleryFab'), backGallery=$('#backGallery'), galleryGrid=$('#galleryGrid'), galleryEmpty=$('#galleryEmpty'), galleryClock=$('#galleryClock');
 const mediaViewer=$('#mediaViewer'), mediaFull=$('#mediaFull'), mediaAudio=$('#mediaAudio'), audioViewerCard=$('#audioViewerCard'), audioViewerDuration=$('#audioViewerDuration'), mediaTitle=$('#mediaTitle'), mediaMeta=$('#mediaMeta'), closeMedia=$('#closeMedia');
+const chapterTransition=$('#chapterTransition'), thresholdAudio=$('#thresholdAudio');
 const KEY='nonaprire_v10_state', META='nonaprire_v10_meta', GALLERY_KEY='nonaprire_v10_gallery';
 const START=60, END=48*60, LIMIT=(END-START)*1000;
-let S={started:false,alive:true,ending:false,chapterDone:false,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false};
+let S={started:false,alive:true,ending:false,chapterDone:false,chapterReached:1,chapterPath:null,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false};
 let clockTimer=null, deadlineTimer=null, busy=false, deathTimer=null, firstMessageTimer=null, toastTimer=null;
 const choiceState={};
 let unlockedMedia=[];
@@ -29,7 +30,7 @@ function saveGallery(){try{localStorage.setItem(GALLERY_KEY,JSON.stringify(unloc
 function unlockMedia(id,overrides={}){const base=MEDIA_CATALOG[id]||{id,...overrides};const item={...base,...overrides,id};if(!item.src)return false;if(!unlockedMedia.some(x=>x.id===id)){unlockedMedia.push({...item,unlockedAt:gameSec()});saveGallery();if(!galleryScreen.classList.contains('hidden'))renderGallery();return true}return false}
 window.unlockGameMedia=unlockMedia;
 try{const m=JSON.parse(localStorage.getItem(META));if(m&&Number.isFinite(m.loops))S.loops=m.loops}catch(_){}
-function normalizeState(){if(!S.threads||typeof S.threads!=='object')S.threads={};if(!('activeThread' in S))S.activeThread=null;if(!('storyBegun' in S))S.storyBegun=false;if(!('firstMessageSent' in S))S.firstMessageSent=false}
+function normalizeState(){if(!S.threads||typeof S.threads!=='object')S.threads={};if(!('activeThread' in S))S.activeThread=null;if(!('storyBegun' in S))S.storyBegun=false;if(!('firstMessageSent' in S))S.firstMessageSent=false;if(!Number.isFinite(S.chapterReached))S.chapterReached=1;if(!('chapterPath' in S))S.chapterPath=null}
 normalizeState();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(_){}}
 function elapsed(){return S.started?Math.max(0,Date.now()-S.startAt):0}
@@ -174,7 +175,72 @@ async function failSafe(text){await add(text,'sys',500,'unknown');await add('Non
 function contextualDeadline(){const n=S.node;if(/bed|room|mirror/.test(n))return 'Alle 00:48 lo schermo nella camera si accende. Nel vetro nero compare il tuo riflesso, ma continua a muoversi quando tu ti fermi.';if(/door|entry/.test(n))return 'Alle 00:48 la serratura scatta. Non dall’esterno. La porta si apre lentamente verso di te e, dietro, c’è il corridoio di casa tua.';if(/wall|listen|ceiling/.test(n))return 'Alle 00:48 i colpi tornano. Non arrivano più dalla parete: arrivano da dentro il telefono che tieni in mano.';return 'Alle 00:48 tutti i rumori cessano. Nel display vedi per un istante qualcuno fermo esattamente alle tue spalle.'}
 async function deadlineDeath(){if(!S.started||!S.alive||S.ending||S.chapterDone)return;await die(contextualDeadline())}
 async function die(text){if(S.ending||S.chapterDone)return;S.ending=true;S.alive=false;clearChoices('unknown');clearTimeout(deadlineTimer);save();if(S.threads.unknown)openThread('unknown');await add(text,'sys',450,'unknown');const box=document.createElement('div');box.className='deadBattery';box.innerHTML='<div class="deadBatteryRow"><span class="deadBatteryIcon" aria-hidden="true">🪫</span><div><strong>BATTERIA SCARICA</strong><span>0%</span></div></div><p class="deathCountdown">Il loop ricomincia tra <b>15</b> secondi…</p><small>Puoi scorrere la chat e rileggere cosa è successo.</small>';chat.appendChild(box);scrollBottom();let left=15;const n=box.querySelector('b');deathTimer=setInterval(()=>{left--;if(n)n.textContent=Math.max(0,left);if(left<=0){clearInterval(deathTimer);deathTimer=null;resetLoop()}},1000)}
-async function chapterEnd(){if(S.chapterDone||S.ending)return;S.chapterDone=true;clearChoices('unknown');stopTimers();save();if(S.threads.unknown)openThread('unknown');await add('Il telefono smette di vibrare. Per la prima volta dall’inizio della notte, il silenzio non sembra una minaccia.','sys',600,'unknown');const box=document.createElement('div');box.className='chapterEnd';box.innerHTML='<strong>CAPITOLO 1 COMPLETATO</strong><p>Hai raggiunto la fine del contenuto disponibile.</p><small>Il Capitolo 2 è ancora in sviluppo.</small>';chat.appendChild(box);scrollBottom();const b=document.createElement('button');b.type='button';b.className='choice';b.textContent='RICOMINCIA IL CAPITOLO 1';b.addEventListener('click',resetLoop,{once:true});choices.appendChild(b)}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+async function playThresholdTransition(){
+  if(!chapterTransition||chapterTransition.dataset.running==='1')return;
+  chapterTransition.dataset.running='1';
+  S.chapterReached=2;
+  S.chapterPath='threshold';
+  save();
+  menuPanel?.classList.add('hidden');
+  confirmPanel?.classList.add('hidden');
+  toast?.classList.add('hidden');
+  chapterTransition.classList.remove('hidden','glitching');
+  chapterTransition.setAttribute('aria-hidden','false');
+  void chapterTransition.offsetWidth;
+  chapterTransition.classList.add('playing');
+  if(thresholdAudio){
+    try{thresholdAudio.pause();thresholdAudio.currentTime=0;thresholdAudio.volume=.92;await thresholdAudio.play()}catch(_){}
+  }
+  // The hub is revealed underneath during the final visual tear, not through a fade.
+  await sleep(2720);
+  openHub();
+  chapterTransition.classList.add('glitching');
+  try{if(navigator.vibrate)navigator.vibrate([22,22,38])}catch(_){}
+  await sleep(420);
+  chapterTransition.classList.add('hidden');
+  chapterTransition.classList.remove('playing','glitching');
+  chapterTransition.setAttribute('aria-hidden','true');
+  chapterTransition.dataset.running='0';
+  if(thresholdAudio){try{thresholdAudio.pause();thresholdAudio.currentTime=0}catch(_){}}
+}
+function continueDoorChapter2(){
+  if(S.node!=='entry_close')return;
+  playThresholdTransition();
+}
+async function chapterEnd(){
+  if(S.chapterDone||S.ending)return;
+  const endingNode=S.node;
+  const isDoorEnding=endingNode==='entry_close';
+  S.chapterDone=true;
+  if(isDoorEnding){S.chapterReached=2;S.chapterPath='threshold'}
+  clearChoices('unknown');
+  stopTimers();
+  save();
+  if(S.threads.unknown)openThread('unknown');
+  await add('Il telefono smette di vibrare. Per la prima volta dall’inizio della notte, il silenzio non sembra una minaccia.','sys',600,'unknown');
+  const box=document.createElement('div');
+  box.className='chapterEnd';
+  box.innerHTML=isDoorEnding
+    ?'<strong>CAPITOLO 1 COMPLETATO</strong><p>Per questa notte, non puoi andare oltre.</p><small>Il prossimo arco è pronto.</small>'
+    :'<strong>CAPITOLO 1 COMPLETATO</strong><p>Hai raggiunto la fine del contenuto disponibile.</p><small>Il Capitolo 2 di questo percorso è ancora in sviluppo.</small>';
+  chat.appendChild(box);
+  scrollBottom();
+  if(isDoorEnding){
+    const next=document.createElement('button');
+    next.type='button';
+    next.className='choice chapterContinue';
+    next.textContent='CONTINUA — CAPITOLO 2';
+    next.addEventListener('click',continueDoorChapter2,{once:true});
+    choices.appendChild(next);
+  }
+  const b=document.createElement('button');
+  b.type='button';
+  b.className='choice';
+  b.textContent='RICOMINCIA IL CAPITOLO 1';
+  b.addEventListener('click',resetLoop,{once:true});
+  choices.appendChild(b)
+}
 function resetLoop(){stopTimers();const loops=(S.loops||0)+1;try{localStorage.setItem(META,JSON.stringify({loops}))}catch(_){}localStorage.removeItem(KEY);location.reload()}
 function resetAll(){stopTimers();localStorage.removeItem(KEY);localStorage.removeItem(META);localStorage.removeItem(GALLERY_KEY);location.reload()}
 const C=(label,next,action=false)=>({label,next,action});
