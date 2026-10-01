@@ -190,7 +190,7 @@ async function playThresholdTransition(){
   void chapterTransition.offsetWidth;
   chapterTransition.classList.add('playing');
   if(thresholdAudio){
-    try{thresholdAudio.pause();thresholdAudio.currentTime=0;thresholdAudio.volume=.92;await thresholdAudio.play()}catch(_){}
+    try{thresholdAudio.pause();thresholdAudio.currentTime=0;thresholdAudio.volume=.86;await thresholdAudio.play()}catch(_){}
   }
   // The hub is revealed underneath during the final visual tear, not through a fade.
   await sleep(2720);
