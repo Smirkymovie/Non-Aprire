@@ -61,7 +61,33 @@ function deliverAnomalyPhoto(which='entry_photo_1'){
   pushImageMessage('anomaly',which,{title:item.title,kind:item.kind},'them');
   return true;
 }
+function roomEvidencePhotoEl(item,who='me'){
+  const wrap=document.createElement('button');
+  wrap.type='button';
+  wrap.className='roomEvidencePhoto '+who;
+  wrap.setAttribute('aria-label','Apri immagine '+((item&&item.title)||'Foto camera'));
+  const img=document.createElement('img');
+  img.alt=(item&&item.title)||'Foto camera';
+  img.src=((item&&item.src)||'./room-photo-bed.jpg')+'?ui=28';
+  wrap.appendChild(img);
+  const meta=document.createElement('span');
+  meta.className='roomEvidencePhotoMeta';
+  meta.textContent='📷 '+((item&&item.title)||'Foto camera');
+  wrap.appendChild(meta);
+  wrap.addEventListener('click',()=>item&&openMedia(item));
+  img.addEventListener('load',()=>{
+    requestAnimationFrame(()=>{
+      try{wrap.scrollIntoView({block:'end',behavior:'auto'})}catch(_){scrollBottom()}
+      setTimeout(()=>{chat.scrollTop=chat.scrollHeight},80)
+    })
+  },{once:true});
+  return wrap;
+}
 function messageEl(m){
+  if(m.roomEvidenceMediaId){
+    const item=mediaById(m.roomEvidenceMediaId);
+    return roomEvidencePhotoEl(item,m.who||'me');
+  }
   if(m.mediaId){
     const item=mediaById(m.mediaId);
     if(item&&item.mediaType==='audio'){
@@ -112,6 +138,31 @@ function pushMessage(threadId,text,who='sys'){const t=makeThread(threadId);const
 function add(text,who='sys',delay=0,threadId='unknown'){return new Promise(resolve=>setTimeout(()=>{if(text)pushMessage(threadId,text,who);resolve()},delay))}
 function pushImageMessage(threadId,id,overrides={},who='them'){unlockMedia(id,overrides);const item=mediaById(id);if(!item)return null;const t=makeThread(threadId);const m={mediaId:id,who,at:gameSec()};t.messages.push(m);t.lastAt=m.at;if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){const el=messageEl(m);chat.appendChild(el);scrollBottom();setTimeout(scrollBottom,120);setTimeout(scrollBottom,450)}else{t.unread=(t.unread||0)+1;renderHub();showToast(t,{text:'Ti ha inviato una nuova foto.'})}save();return m}
 window.sendGameImage=pushImageMessage;
+function pushRoomEvidencePhoto(threadId='unknown'){
+  const id='room_photo_bed';
+  unlockMedia(id,{title:'Foto camera',kind:'foto scattata',mediaType:'image'});
+  const item=mediaById(id)||MEDIA_CATALOG[id];
+  const t=makeThread(threadId);
+  const m={roomEvidenceMediaId:id,who:'me',at:gameSec()};
+  t.messages.push(m);
+  t.lastAt=m.at;
+  if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){
+    const el=roomEvidencePhotoEl(item,'me');
+    chat.appendChild(el);
+    requestAnimationFrame(()=>{
+      chat.scrollTop=chat.scrollHeight;
+      try{el.scrollIntoView({block:'end',behavior:'auto'})}catch(_){}
+    });
+    setTimeout(()=>{chat.scrollTop=chat.scrollHeight},120);
+    setTimeout(()=>{chat.scrollTop=chat.scrollHeight},500);
+  }else{
+    t.unread=(t.unread||0)+1;
+    renderHub();
+  }
+  save();
+  return m;
+}
+window.sendRoomEvidencePhoto=pushRoomEvidencePhoto;
 function pushAudioMessage(threadId,id,overrides={},who='them'){unlockMedia(id,overrides);const item=mediaById(id);if(!item)return null;const t=makeThread(threadId);const m={mediaId:id,who,at:gameSec()};t.messages.push(m);t.lastAt=m.at;if(S.activeThread===threadId&&!chatScreen.classList.contains('hidden')){chat.appendChild(messageEl(m));scrollBottom()}else{t.unread=(t.unread||0)+1;renderHub();showToast(t,{text:'Ti ha inviato un nuovo audio.'})}save();return m}
 window.sendGameAudio=pushAudioMessage;
 function clearChoices(threadId='unknown'){choiceState[threadId]=[];if(S.activeThread===threadId)choices.replaceChildren()}
@@ -167,7 +218,7 @@ listen_truth:{msgs:[M('Perché non sta registrando quello che accade adesso.','t
 listen_close:{msgs:[M('Metti il telefono in tasca senza interrompere la registrazione.','sys'),M('Per la prima volta, il secondo respiro si ferma, insieme al tuo audio.','sys',700),M('Il corridoio resta buio, ma non sei più costretto a seguirlo.','sys')],end:true},
 room_final:{msgs:[M('Torni davanti alla camera. Il secondo telefono è ancora sul letto.','sys'),M('Lo schermo sfarfalla a intermittenza, come se faticasse a restare acceso.','sys',700),M('Dall’altoparlante esce un rumore di fondo termico, basso e continuo.','sys',700)],choices:[C('Non lo tocco. Scatto una foto.','room_evidence',true),D('Raccolgo il secondo telefono.','Lo schermo mostra la tua chat un messaggio avanti. Leggi: «Non raccoglierlo.» Poi senti le dita chiudersi attorno al tuo polso.'),C('Resto sulla soglia e osservo lo schermo da lontano.','room_watch',true)]},
 room_watch:{msgs:[M('Resti sulla soglia. Il secondo telefono continua a sfarfallare sul letto.','sys'),M('La chat scorre da sola fino a un messaggio che sul tuo telefono non esiste.','sys',650),M('«NON ENTRARE QUANDO IL LETTO È VUOTO.»','sys',650),M('Alzi gli occhi. Sul letto adesso non c’è più nemmeno la tua ombra.','sys')],choices:[C('Scatto una foto senza entrare.','room_evidence',true),D('Entro per controllare sotto il letto.','Ti chini. Sotto il letto vedi il corridoio di casa tua, ma dall’altra parte qualcuno è già inginocchiato e ti sta guardando.') ]},
-room_evidence:{msgs:[M('Scatti la foto.','sys')],effect:async()=>{await add('Oddio che schifo.','them',500,'unknown');await add('Mi è preso un colpo, non me lo aspettavo.','them',750,'unknown');await new Promise(r=>setTimeout(r,450));await add('Nell’immagine il secondo telefono non compare.','sys',0,'unknown');await add('Al suo posto c’è una persona seduta sul bordo del letto, di spalle.','sys',700,'unknown');await new Promise(r=>setTimeout(r,700));pushImageMessage('unknown','room_photo_bed',{title:'Foto camera',kind:'foto scattata'},'me');await new Promise(r=>setTimeout(r,450))},choices:[C('“Chi è quella persona?”','room_truth'),C('“Come hai ricevuto la foto?”','room_truth')]},
+room_evidence:{msgs:[M('Scatti la foto.','sys')],effect:async()=>{await add('Oddio che schifo.','them',500,'unknown');await add('Mi è preso un colpo, non me lo aspettavo.','them',750,'unknown');await new Promise(r=>setTimeout(r,450));await add('Nell’immagine il secondo telefono non compare.','sys',0,'unknown');await add('Al suo posto c’è una persona seduta sul bordo del letto, di spalle.','sys',700,'unknown');await new Promise(r=>setTimeout(r,700));pushRoomEvidencePhoto('unknown');await new Promise(r=>setTimeout(r,450))},choices:[C('“Chi è quella persona?”','room_truth'),C('“Come hai ricevuto la foto?”','room_truth')]},
 room_truth:{msgs:[M('Non guardarle il viso.','them'),M('Io l’ho fatto. È per questo che questa parte della notte per me finiva qui.','them',650),M('Tu invece hai una prova che io non avevo. Conservala.','them',650),M('Il numero sconosciuto riceve la foto prima ancora che tu possa inviarla.','sys',700)],choices:[C('Esco dalla camera senza voltarmi.','room_close',true)]},
 room_close:{msgs:[M('Chiudi lentamente la porta della camera.','sys'),M('Dall’altra parte qualcuno imita il rumore della serratura mezzo secondo dopo di te.','sys',700),M('La fotografia rimane sul telefono.','sys')],end:true},
 wall_final:{msgs:[M('Torni alla parete.','sys'),M('Il ronzio è ancora lì, ma adesso pulsa a intervalli regolari.','sys',650),M('TOC. TOC. TOC. TOC.','sys',900),M('Quattro colpi. Non tre.','them')],choices:[C('Busso quattro volte nello stesso punto.','wall_four',true),C('Registro i quattro colpi.','wall_record',true),D('Appoggio l’occhio alla crepa.','La crepa non mostra l’interno del muro. Mostra il tuo corridoio, visto da un punto che non dovrebbe esistere. Qualcuno si avvicina dall’altra parte.') ]},

@@ -250,3 +250,46 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 
 /* UI27 - robust chat photo rendering */
 .msgMedia.mediaLoadError{min-height:160px;background:#18191c}.msgMedia.mediaLoadError img{display:none}.msgMedia.mediaLoadError .msgMediaMeta{top:0;bottom:0;display:flex;align-items:center;justify-content:center;background:none;text-align:center}
+
+/* UI28 — dedicated bedroom evidence photo in chat */
+.roomEvidencePhoto{
+  display:block!important;
+  flex:0 0 auto!important;
+  align-self:flex-end!important;
+  width:min(86%,360px)!important;
+  min-width:240px!important;
+  height:auto!important;
+  margin:8px 0 12px!important;
+  padding:3px!important;
+  border:0!important;
+  border-radius:18px 18px 6px 18px!important;
+  overflow:hidden!important;
+  background:#0a84ff!important;
+  box-shadow:0 8px 28px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.10)!important;
+  position:relative!important;
+  z-index:2!important;
+}
+.roomEvidencePhoto img{
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:260px!important;
+  max-height:440px!important;
+  aspect-ratio:3/4!important;
+  object-fit:cover!important;
+  border-radius:15px 15px 4px 15px!important;
+  background:#111!important;
+}
+.roomEvidencePhotoMeta{
+  position:absolute!important;
+  left:10px!important;
+  right:10px!important;
+  bottom:8px!important;
+  padding:30px 7px 6px!important;
+  background:linear-gradient(transparent,rgba(0,0,0,.78))!important;
+  color:#fff!important;
+  font:600 10px/1.2 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif!important;
+  text-align:left!important;
+  letter-spacing:.04em!important;
+  pointer-events:none!important;
+}
