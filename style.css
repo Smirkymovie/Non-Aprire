@@ -329,3 +329,10 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 @keyframes thresholdSlices{0%{transform:translateX(0)}25%{transform:translateX(14px)}50%{transform:translateX(-18px)}75%{transform:translateX(7px)}100%{transform:translateX(0)}}
 @keyframes thresholdFlash{0%,19%,44%,72%{opacity:0}20%,45%,73%{opacity:.65}29%,54%,82%,100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.chapterTransition.playing .thresholdDoor{animation-duration:1.2s}.chapterTransition.playing .thresholdTitle{animation-delay:.45s;animation-duration:.35s}.chapterTransition.glitching,.chapterTransition.glitching *{animation-duration:.18s!important}}
+
+
+/* UI33 — Capitolo II: LA SOGLIA, ramo completo */
+#overlay button#start.chapter2ContinueHome:after{content:"\A La Soglia"!important;white-space:pre;font-size:14px;letter-spacing:.02em;color:#e9e2dd}
+.chapterEnd.chapterTwoEnd:before{content:"CAPITOLO 2"!important}
+.chapterEnd.chapterTwoEnd:after{content:"COMPLETATO"!important}
+.chapterEnd.chapterTwoEnd p{font-size:19px;letter-spacing:.08em;text-transform:uppercase}

@@ -8,7 +8,7 @@ const mediaViewer=$('#mediaViewer'), mediaFull=$('#mediaFull'), mediaAudio=$('#m
 const chapterTransition=$('#chapterTransition'), thresholdAudio=$('#thresholdAudio');
 const KEY='nonaprire_v10_state', META='nonaprire_v10_meta', GALLERY_KEY='nonaprire_v10_gallery';
 const START=60, END=48*60, LIMIT=(END-START)*1000;
-let S={started:false,alive:true,ending:false,chapterDone:false,chapterReached:1,chapterPath:null,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false};
+let S={started:false,alive:true,ending:false,chapterDone:false,chapterReached:1,chapterPath:null,chapter2Active:false,chapter2Ending:null,chapterPauseSec:null,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false,threshold:null};
 let clockTimer=null, deadlineTimer=null, busy=false, deathTimer=null, firstMessageTimer=null, toastTimer=null;
 const choiceState={};
 let unlockedMedia=[];
@@ -29,10 +29,34 @@ const MEDIA_CATALOG={
 function saveGallery(){try{localStorage.setItem(GALLERY_KEY,JSON.stringify(unlockedMedia))}catch(_){}}
 function unlockMedia(id,overrides={}){const base=MEDIA_CATALOG[id]||{id,...overrides};const item={...base,...overrides,id};if(!item.src)return false;if(!unlockedMedia.some(x=>x.id===id)){unlockedMedia.push({...item,unlockedAt:gameSec()});saveGallery();if(!galleryScreen.classList.contains('hidden'))renderGallery();return true}return false}
 window.unlockGameMedia=unlockMedia;
-try{const m=JSON.parse(localStorage.getItem(META));if(m&&Number.isFinite(m.loops))S.loops=m.loops}catch(_){}
-function normalizeState(){if(!S.threads||typeof S.threads!=='object')S.threads={};if(!('activeThread' in S))S.activeThread=null;if(!('storyBegun' in S))S.storyBegun=false;if(!('firstMessageSent' in S))S.firstMessageSent=false;if(!Number.isFinite(S.chapterReached))S.chapterReached=1;if(!('chapterPath' in S))S.chapterPath=null}
+let META_STATE={loops:0,chapterReached:1,chapterPath:null};
+try{
+  const m=JSON.parse(localStorage.getItem(META));
+  if(m&&typeof m==='object'){
+    META_STATE={...META_STATE,...m};
+    if(Number.isFinite(m.loops))S.loops=m.loops;
+    if(Number.isFinite(m.chapterReached))S.chapterReached=m.chapterReached;
+    if('chapterPath' in m)S.chapterPath=m.chapterPath;
+  }
+}catch(_){}
+function normalizeState(){
+  if(!S.threads||typeof S.threads!=='object')S.threads={};
+  if(!('activeThread' in S))S.activeThread=null;
+  if(!('storyBegun' in S))S.storyBegun=false;
+  if(!('firstMessageSent' in S))S.firstMessageSent=false;
+  if(!Number.isFinite(S.chapterReached))S.chapterReached=1;
+  if(!('chapterPath' in S))S.chapterPath=null;
+  if(!('chapter2Active' in S))S.chapter2Active=false;
+  if(!('chapter2Ending' in S))S.chapter2Ending=null;
+  if(!('chapterPauseSec' in S))S.chapterPauseSec=null;
+  if(!('threshold' in S))S.threshold=null;
+}
 normalizeState();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(_){}}
+function saveMeta(extra={}){
+  META_STATE={...META_STATE,loops:Number.isFinite(S.loops)?S.loops:(META_STATE.loops||0),chapterReached:S.chapterReached||1,chapterPath:S.chapterPath||null,...extra};
+  try{localStorage.setItem(META,JSON.stringify(META_STATE))}catch(_){}
+}
 function elapsed(){return S.started?Math.max(0,Date.now()-S.startAt):0}
 function gameSec(){return Math.min(END,START+Math.floor(elapsed()/1000))}
 function fmt(n){const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return [h,m,s].map(x=>String(x).padStart(2,'0')).join(':')}
@@ -170,11 +194,101 @@ window.sendGameAudio=pushAudioMessage;
 function clearChoices(threadId='unknown'){choiceState[threadId]=[];if(S.activeThread===threadId)choices.replaceChildren()}
 function renderChoices(list,threadId='unknown'){choiceState[threadId]=list||[];if(S.activeThread===threadId){renderChoiceDOM(choiceState[threadId]);requestAnimationFrame(()=>requestAnimationFrame(scrollBottom))}}
 async function pick(c){if(busy||S.ending||S.chapterDone)return;busy=true;const threadId=S.activeThread||'unknown';const label=c.label;clearChoices(threadId);S.history.push({node:S.node,choice:label,at:gameSec(),thread:threadId});save();await add(label,'me',0,threadId);if(c.death){busy=false;return die(c.death)}if(c.run){busy=false;return c.run()}if(c.end){busy=false;return chapterEnd()}busy=false;return go(c.next)}
-async function go(id){if(S.ending||S.chapterDone)return;const node=NODES[id];if(!node){return failSafe('Il filo della conversazione si interrompe. Il telefono vibra una volta, poi compare un nuovo messaggio.')}const threadId=node.thread||'unknown';S.node=id;save();clearChoices(threadId);for(const m of node.msgs){await add(m.text,m.who||'sys',m.delay??420,threadId)}if(node.effect)await node.effect();if(node.end)return chapterEnd();if(!node.choices||node.choices.length===0)return failSafe('Per qualche secondo non succede nulla. Poi il numero sconosciuto scrive di nuovo.');renderChoices(node.choices,threadId)}
+async function go(id){
+  if(S.ending||S.chapterDone)return;
+  const node=NODES[id];
+  if(!node)return failSafe('Il filo della conversazione si interrompe. Il telefono vibra una volta, poi compare un nuovo messaggio.');
+  const threadId=node.thread||'unknown';
+  S.node=id;save();clearChoices(threadId);
+  const msgs=typeof node.msgs==='function'?node.msgs():node.msgs;
+  for(const m of (msgs||[]))await add(m.text,m.who||'sys',m.delay??420,threadId);
+  if(node.effect)await node.effect();
+  if(node.chapter2End)return chapter2End(node.chapter2End);
+  if(node.end)return chapterEnd();
+  const nodeChoices=typeof node.choices==='function'?node.choices():node.choices;
+  if(!nodeChoices||nodeChoices.length===0)return failSafe('Per qualche secondo non succede nulla. Poi il numero sconosciuto scrive di nuovo.');
+  renderChoices(nodeChoices,threadId);
+}
 async function failSafe(text){await add(text,'sys',500,'unknown');await add('Non restare fermo. Vai verso l’ingresso.','them',450,'unknown');renderChoices([{label:'Vado verso l’ingresso.',action:true,next:'entry_final'},{label:'Resto dove sono e ascolto.',action:true,next:'listen_final'}],'unknown')}
-function contextualDeadline(){const n=S.node;if(/bed|room|mirror/.test(n))return 'Alle 00:48 lo schermo nella camera si accende. Nel vetro nero compare il tuo riflesso, ma continua a muoversi quando tu ti fermi.';if(/door|entry/.test(n))return 'Alle 00:48 la serratura scatta. Non dall’esterno. La porta si apre lentamente verso di te e, dietro, c’è il corridoio di casa tua.';if(/wall|listen|ceiling/.test(n))return 'Alle 00:48 i colpi tornano. Non arrivano più dalla parete: arrivano da dentro il telefono che tieni in mano.';return 'Alle 00:48 tutti i rumori cessano. Nel display vedi per un istante qualcuno fermo esattamente alle tue spalle.'}
+function contextualDeadline(){
+  const n=S.node;
+  if(/^t2_/.test(n))return 'Alle 00:48 tutte le porte della casa si aprono nello stesso istante. Dietro ognuna c’è lo stesso corridoio. Da ogni direzione, i tuoi passi cominciano a venire verso di te.';
+  if(/bed|room|mirror/.test(n))return 'Alle 00:48 lo schermo nella camera si accende. Nel vetro nero compare il tuo riflesso, ma continua a muoversi quando tu ti fermi.';
+  if(/door|entry/.test(n))return 'Alle 00:48 la serratura scatta. Non dall’esterno. La porta si apre lentamente verso di te e, dietro, c’è il corridoio di casa tua.';
+  if(/wall|listen|ceiling/.test(n))return 'Alle 00:48 i colpi tornano. Non arrivano più dalla parete: arrivano da dentro il telefono che tieni in mano.';
+  return 'Alle 00:48 tutti i rumori cessano. Nel display vedi per un istante qualcuno fermo esattamente alle tue spalle.';
+}
 async function deadlineDeath(){if(!S.started||!S.alive||S.ending||S.chapterDone)return;await die(contextualDeadline())}
 async function die(text){if(S.ending||S.chapterDone)return;S.ending=true;S.alive=false;clearChoices('unknown');clearTimeout(deadlineTimer);save();if(S.threads.unknown)openThread('unknown');await add(text,'sys',450,'unknown');const box=document.createElement('div');box.className='deadBattery';box.innerHTML='<div class="deadBatteryRow"><span class="deadBatteryIcon" aria-hidden="true">🪫</span><div><strong>BATTERIA SCARICA</strong><span>0%</span></div></div><p class="deathCountdown">Il loop ricomincia tra <b>15</b> secondi…</p><small>Puoi scorrere la chat e rileggere cosa è successo.</small>';chat.appendChild(box);scrollBottom();let left=15;const n=box.querySelector('b');deathTimer=setInterval(()=>{left--;if(n)n.textContent=Math.max(0,left);if(left<=0){clearInterval(deathTimer);deathTimer=null;resetLoop()}},1000)}
+function defaultThresholdState(){
+  return {trust:0,sceptic:false,caughtSmallError:false,directionClue:false,geometryClue:false,closedAfterOpen:false,marked:false,loopClue:false,anomalyClue:false,noneClue:false,independent:false,leftDoorOpen:false,opened:0};
+}
+function thresholdState(){if(!S.threshold||typeof S.threshold!=='object')S.threshold=defaultThresholdState();return S.threshold}
+function tMut(fn){const st=thresholdState();if(typeof fn==='function')fn(st);save();return st}
+function isThresholdActive(){return !!(S.chapter2Active&&S.chapterPath==='threshold'&&String(S.node||'').startsWith('t2_'))}
+function thresholdFinalChoices(){
+  const st=thresholdState();
+  const out=[];
+  if(st.directionClue)out.push(R('Chiudo la porta dal lato da cui si è aperta.','t2_end_closed',x=>{x.finalIntent='closed'},true));
+  else out.push(D('Afferrò la maniglia e provo a chiuderla di forza.','La maniglia gira nella tua mano, ma la porta non si muove. Dietro di te senti la stessa maniglia abbassarsi una seconda volta.'));
+  if(st.loopClue||st.marked)out.push(R('Attraverso volontariamente, senza richiudere dietro di me.','t2_end_beyond',x=>{x.finalIntent='beyond'},true));
+  else out.push(D('Attraverso subito prima che si apra del tutto.','Metti un piede oltre la soglia. Il pavimento c’è. Il secondo passo, invece, cade nello stesso punto da cui sei partito. Quando ti volti, la porta è già chiusa e tu sei dalla parte sbagliata.'));
+  if(st.directionClue&&st.anomalyClue)out.push(R('La apro nel verso opposto e aspetto che sia l’altra cosa ad attraversare.','t2_end_reverse',x=>{x.finalIntent='reverse'},true));
+  out.push(R('Seguo il consiglio del Numero Sconosciuto: la apro verso casa.','t2_end_enter',x=>{x.finalIntent='enter'},true));
+  if(st.noneClue)out.push(R('Spengo lo schermo. Non uso nessuna porta.','t2_end_none',x=>{x.finalIntent='none'},true));
+  else out.push(D('Spengo il telefono e avanzo nel buio.','Nel buio perdi il conto dei passi. Quando riaccendi lo schermo, sei davanti alla stessa porta. Sul display c’è una foto appena scattata: la stai guardando dall’altra parte.'));
+  return out;
+}
+const R=(label,next,mutate,action=false)=>({label,next,action,run:async()=>{tMut(mutate);return go(next)}});
+async function chapter2End(info){
+  if(S.chapterDone||S.ending)return;
+  S.chapterDone=true;
+  S.chapter2Active=false;
+  S.chapter2Ending=info.id;
+  clearChoices('unknown');
+  stopTimers();
+  save();
+  saveMeta({chapterReached:2,chapterPath:'threshold',lastThresholdEnding:info.id});
+  if(S.threads.unknown)openThread('unknown');
+  const box=document.createElement('div');
+  box.className='chapterEnd chapterTwoEnd';
+  box.innerHTML='<strong>CAPITOLO 2 COMPLETATO</strong><p></p><small></small>';
+  box.querySelector('p').textContent=info.title;
+  box.querySelector('small').textContent=info.note||'Questo finale aprirà un percorso diverso nel Capitolo 3.';
+  chat.appendChild(box);
+  scrollBottom();
+  const again=document.createElement('button');
+  again.type='button';again.className='choice chapterContinue';again.textContent='RIGIOCA — LA SOGLIA';
+  again.addEventListener('click',restartThresholdLoop,{once:true});
+  choices.appendChild(again);
+}
+function prepareThresholdChapter2({preserveThreads=true,resumeSec=START}={}){
+  stopTimers();
+  const loops=S.loops||0;
+  const previousThreads=preserveThreads?S.threads:{};
+  const safeResume=Math.max(START,Math.min(END,Number.isFinite(resumeSec)?resumeSec:START));
+  S={started:true,alive:true,ending:false,chapterDone:false,chapterReached:2,chapterPath:'threshold',chapter2Active:true,chapter2Ending:null,chapterPauseSec:null,startAt:Date.now()-((safeResume-START)*1000),node:'t2_start',history:[],loops,threads:previousThreads||{},activeThread:null,storyBegun:true,firstMessageSent:true,threshold:defaultThresholdState()};
+  for(const k of Object.keys(choiceState))delete choiceState[k];
+  $('#overlay').classList.add('hidden');
+  chat.replaceChildren();choices.replaceChildren();
+  chatScreen.classList.add('hidden');galleryScreen.classList.add('hidden');hubScreen.classList.remove('hidden');
+  renderHub();startClock();save();saveMeta({chapterReached:2,chapterPath:'threshold'});
+  setTimeout(()=>go('t2_start'),650);
+}
+function restartThresholdLoop(){
+  const loops=(S.loops||0)+1;
+  S.loops=loops;
+  saveMeta({loops,chapterReached:2,chapterPath:'threshold'});
+  prepareThresholdChapter2({preserveThreads:false});
+}
+function restartChapter1PreserveKnowledge(){
+  stopTimers();
+  const loops=(S.loops||0)+1;
+  META_STATE={loops,chapterReached:1,chapterPath:null};
+  try{localStorage.setItem(META,JSON.stringify(META_STATE))}catch(_){}
+  localStorage.removeItem(KEY);
+  location.reload();
+}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 async function playThresholdTransition(){
   if(!chapterTransition||chapterTransition.dataset.running==='1')return;
@@ -203,6 +317,8 @@ async function playThresholdTransition(){
   chapterTransition.setAttribute('aria-hidden','true');
   chapterTransition.dataset.running='0';
   if(thresholdAudio){try{thresholdAudio.pause();thresholdAudio.currentTime=0}catch(_){}}
+  const resumeSec=Number.isFinite(S.chapterPauseSec)?S.chapterPauseSec:START;
+  prepareThresholdChapter2({preserveThreads:true,resumeSec});
 }
 function continueDoorChapter2(){
   if(S.node!=='entry_close')return;
@@ -213,7 +329,8 @@ async function chapterEnd(){
   const endingNode=S.node;
   const isDoorEnding=endingNode==='entry_close';
   S.chapterDone=true;
-  if(isDoorEnding){S.chapterReached=2;S.chapterPath='threshold'}
+  S.chapterPauseSec=gameSec();
+  if(isDoorEnding){S.chapterReached=2;S.chapterPath='threshold';saveMeta({chapterReached:2,chapterPath:'threshold'})}
   clearChoices('unknown');
   stopTimers();
   save();
@@ -241,7 +358,12 @@ async function chapterEnd(){
   b.addEventListener('click',resetLoop,{once:true});
   choices.appendChild(b)
 }
-function resetLoop(){stopTimers();const loops=(S.loops||0)+1;try{localStorage.setItem(META,JSON.stringify({loops}))}catch(_){}localStorage.removeItem(KEY);location.reload()}
+function resetLoop(){
+  if(isThresholdActive()||S.chapterPath==='threshold'&&S.chapterReached>=2&&String(S.node||'').startsWith('t2_'))return restartThresholdLoop();
+  stopTimers();
+  const loops=(S.loops||0)+1;S.loops=loops;saveMeta({loops,chapterReached:1,chapterPath:null});
+  localStorage.removeItem(KEY);location.reload();
+}
 function resetAll(){stopTimers();localStorage.removeItem(KEY);localStorage.removeItem(META);localStorage.removeItem(GALLERY_KEY);location.reload()}
 const C=(label,next,action=false)=>({label,next,action});
 const D=(label,death,action=true)=>({label,death,action});
@@ -299,10 +421,413 @@ mirror_question:{msgs:[M('La prima frase sì.','them'),M('La seconda no.','them'
 mirror_edge:{msgs:[M('Sul bordo inferiore dello specchio ci sono piccoli segni incisi nel vetro.','sys'),M('Sembrano tacche. Ne conti molte più di quante riesci a seguire.','sys',700),M('L’ultima è ancora pulita, come se fosse stata incisa pochi secondi fa.','sys')],choices:[C('Fotografo le tacche.','mirror_evidence',true),D('Tocco l’ultima tacca.','Nel momento in cui la tocchi, tutte le tacche compaiono sul tuo polso come graffi sottili.') ]},
 mirror_evidence:{msgs:[M('Scatti la foto.','sys'),M('Nella galleria l’immagine appare capovolta, anche se non hai ruotato il telefono.','sys',650),M('Nel riflesso fotografato c’è una notifica che sul tuo schermo non è ancora arrivata.','sys',700),M('«HAI TROVATO UN’ALTRA USCITA.»','sys')],effect:async()=>{unlockMedia('mirror_photo',{title:'Foto specchio',kind:'foto scattata',mediaType:'image'})},choices:[C('“Un’uscita da cosa?”','mirror_truth'),C('“Perché il messaggio è già nella foto?”','mirror_truth')]},
 mirror_truth:{msgs:[M('Non lo so ancora.','them'),M('Ma questa foto non esiste nei miei ricordi.','them',650),M('Se la notte ricomincia, portala con te. Forse non dobbiamo sempre arrivare alla stessa porta.','them')],choices:[C('Conservo la foto.','mirror_close',true)]},
-mirror_close:{msgs:[M('Blocchi lo schermo.','sys'),M('Quando lo riaccendi, la foto è ancora lì.','sys',650),M('Nello specchio, invece, la seconda frase è scomparsa.','sys')],end:true}
+mirror_close:{msgs:[M('Blocchi lo schermo.','sys'),M('Quando lo riaccendi, la foto è ancora lì.','sys',650),M('Nello specchio, invece, la seconda frase è scomparsa.','sys')],end:true},
+
+/* CAPITOLO II — LA SOGLIA */
+t2_start:{msgs:[
+  M('L’hub torna visibile dopo il glitch. Per qualche secondo non arriva niente.','sys',450),
+  M('Poi il Numero Sconosciuto torna online.','sys',900),
+  M('Sei ancora lì?','them',500),
+  M('Non aprire nessuna porta.','them',650),
+  M('Prima dimmi se l’ingresso è ancora come l’hai lasciato.','them',650)
+],choices:[
+  C('“Cosa stai cercando?”','t2_start_what'),
+  C('“Perché? È ancora chiusa.”','t2_start_why'),
+  C('Controllo la porta senza toccarla.','t2_entry_observe',true)
+]},
+t2_start_what:{msgs:[
+  M('Un dettaglio che ho ignorato la prima volta.','them'),
+  M('Le porte cambiano prima dei corridoi.','them',650),
+  M('Se qualcosa è diverso, non usare la maniglia.','them',650)
+],choices:[
+  C('“Tu hai visto cambiare le porte?”','t2_start_memory'),
+  C('Controllo l’ingresso da lontano.','t2_entry_observe',true)
+]},
+t2_start_why:{msgs:[
+  M('Perché una porta può restare chiusa e smettere comunque di essere la stessa porta.','them'),
+  M('Lo so che non ha senso. Guardala e basta. Senza toccarla.','them',700)
+],choices:[
+  C('“Come fai a esserne sicuro?”','t2_start_memory'),
+  C('La osservo dal corridoio.','t2_entry_observe',true)
+]},
+t2_start_memory:{msgs:[
+  M('Ne ho vista cambiare una. Forse due.','them'),
+  M('È questo il problema.','them',550),
+  M('Ricordo molto bene cosa è successo dopo. Non sempre ricordo cosa avevo fatto prima.','them',700),
+  M('Quindi se qualcosa non coincide con quello che ti dico, fermati.','them',650)
+],effect:async()=>{tMut(x=>{x.sceptic=true})},choices:[
+  C('Controllo la porta.','t2_entry_observe',true)
+]},
+t2_entry_observe:{msgs:[
+  M('Ti fermi a due passi dalla porta d’ingresso.','sys'),
+  M('È ancora chiusa.','sys',550),
+  M('Ma la maniglia non è dalla parte in cui la ricordi.','sys',700),
+  M('Sbatti le palpebre. Per un istante torna al suo posto. Poi è di nuovo dall’altra parte.','sys',800),
+  M('Non toccarla.','them',450),
+  M('Controlla la porta del bagno. Nella mia notte era sicura.','them',650)
+],choices:[
+  C('Apro appena la porta del bagno.','t2_bath_open_error',true),
+  C('“Sicura in che senso?”','t2_bath_doubt'),
+  C('“Sei sicuro?”','t2_bath_doubt')
+]},
+t2_bath_doubt:{msgs:[
+  M('...','them',350),
+  M('No. Aspetta.','them',650),
+  M('Ho detto “sicura” perché nel mio ricordo lì non succedeva niente.','them',650),
+  M('Ma io quella porta l’avevo già chiusa prima dei tre colpi. Tu forse no.','them',750),
+  M('Non aprirla. Prima controlla da sotto.','them',650)
+],effect:async()=>{tMut(x=>{x.caughtSmallError=true;x.sceptic=true})},choices:[
+  C('Controllo sotto la porta senza aprirla.','t2_bath_check',true),
+  C('La apro comunque di pochi centimetri.','t2_bath_open_error',true)
+]},
+t2_bath_check:{msgs:[
+  M('Ti abbassi senza toccare la maniglia.','sys'),
+  M('Dal bagno spento dovrebbe uscire buio. Invece sotto la porta passa una striscia di luce pallida.','sys',700),
+  M('Un’ombra attraversa quella luce dall’interno verso l’esterno.','sys',800),
+  M('Tu sei ancora solo nel corridoio.','sys',650),
+  M('Bene. Non aprirla.','them',500),
+  M('Hai fatto bene a fermarmi.','them',650)
+],effect:async()=>{tMut(x=>{x.independent=true;x.noneClue=true})},choices:[
+  C('“Da ora controlliamo tutto due volte.”','t2_small_error_reply'),
+  C('Mi rialzo e guardo il corridoio.','t2_small_error_reply',true)
+]},
+t2_bath_open_error:{msgs:[
+  M('Apri la porta del bagno di pochi centimetri.','sys'),
+  M('Il bagno è al suo posto. O quasi.','sys',650),
+  M('L’interruttore è sul muro opposto. La mensola è specchiata. Il rubinetto gocciola tre volte.','sys',700),
+  M('Poi una quarta.','sys',850),
+  M('Aspetta. Chiudila.','them',500),
+  M('Mi sono dimenticato che io quella porta l’avevo già chiusa.','them',700),
+  M('Ho dato per scontato che avessimo fatto le stesse cose.','them',650)
+],effect:async()=>{tMut(x=>{x.caughtSmallError=true;x.opened++})},choices:[
+  R('“Mi hai fatto aprire una porta senza esserne sicuro.”','t2_small_error_reply',x=>{x.trust-=1;x.sceptic=true}),
+  R('“Chiudo e basta. Continuiamo.”','t2_small_error_reply',x=>{x.closedAfterOpen=true},true),
+  R('“Da ora controllo prima di fare quello che dici.”','t2_small_error_reply',x=>{x.trust-=1;x.sceptic=true;x.independent=true})
+]},
+t2_small_error_reply:{msgs:[
+  M('Hai ragione.','them'),
+  M('Non sto mentendo. Sto ricordando male.','them',650),
+  M('Se non sono sicuro, te lo dico.','them',650),
+  M('...','sys',650),
+  M('A metà del corridoio, tra il bagno e la camera, c’è una porta che prima non c’era.','sys',850)
+],choices:[
+  C('“Quella c’era nella tua notte?”','t2_new_door'),
+  C('Mi avvicino senza toccarla.','t2_new_door',true)
+]},
+t2_new_door:{msgs:[
+  M('La vernice è identica a quella del muro. Il telaio, invece, sembra più vecchio della casa.','sys'),
+  M('La fessura sotto la porta è completamente nera.','sys',650),
+  M('Quella la conosco.','them',500),
+  M('Non tirarla verso di te. Spingila.','them',550),
+  M('L’altra volta ha funzionato.','them',650)
+],choices:[
+  C('Spingo la porta.','t2_serious_open',true),
+  C('“Da che parte era la maniglia?”','t2_serious_question'),
+  C('“Prima dimmi quanto sei sicuro.”','t2_serious_confidence'),
+  C('Controllo maniglia e cerniere senza aprire.','t2_serious_inspect',true)
+]},
+t2_serious_confidence:{msgs:[
+  M('Sicuro.','them'),
+  M('...','them',700),
+  M('Credo.','them',650),
+  M('No. Aspetta. Non aprirla ancora.','them',650),
+  M('Controlla le cerniere.','them',550)
+],effect:async()=>{tMut(x=>{x.sceptic=true;x.independent=true})},choices:[
+  C('Controllo la porta.','t2_serious_inspect',true),
+  C('“Da che parte era la maniglia?”','t2_serious_question')
+]},
+t2_serious_question:{msgs:[
+  M('A destra.','them'),
+  M('Davanti a te la maniglia è a sinistra.','sys',600),
+  M('...','them',700),
+  M('Io la vedevo dall’altra parte.','them',650),
+  M('Non aprirla.','them',500),
+  M('Mi stavo ricordando il verso giusto dalla posizione sbagliata.','them',700)
+],effect:async()=>{tMut(x=>{x.directionClue=true;x.geometryClue=true;x.independent=true})},choices:[
+  C('Controllo anche le cerniere.','t2_serious_inspect',true),
+  C('Mi allontano dalla porta.','t2_after_serious',true)
+]},
+t2_serious_inspect:{msgs:[
+  M('Ti abbassi e guardi il telaio.','sys'),
+  M('Le cerniere sono dallo stesso lato della maniglia.','sys',650),
+  M('Una porta normale non potrebbe aprirsi in nessuna delle due direzioni.','sys',750),
+  M('Non toccarla.','them',500),
+  M('Stavo per farti aprire una cosa che non capisco.','them',700)
+],effect:async()=>{tMut(x=>{x.directionClue=true;x.geometryClue=true;x.independent=true})},choices:[
+  C('“Allora cambiamo metodo.”','t2_trust_protocol'),
+  C('Mi allontano e la tengo d’occhio.','t2_after_serious',true)
+]},
+t2_serious_open:{msgs:[
+  M('Spingi.','sys'),
+  M('La porta cede di tre centimetri.','sys',650),
+  M('Dall’altra parte non c’è una stanza. C’è solo buio.','sys',700),
+  M('Poi senti qualcosa trascinare lentamente sul pavimento, proprio dietro la fessura.','sys',850),
+  M('Aspetta.','them',350),
+  M('No.','them',450),
+  M('CHIUDILA. ADESSO.','them',500)
+],effect:async()=>{tMut(x=>{x.opened++;x.trust-=2;x.directionClue=true})},choices:[
+  R('La chiudo immediatamente.','t2_serious_survive',x=>{x.closedAfterOpen=true},true),
+  D('Guardo nella fessura.','Avvicini l’occhio. Dall’altra parte c’è già un occhio appoggiato alla stessa fessura. Non sbatte le palpebre. La porta comincia ad aprirsi da sola.'),
+  D('Tengo la porta aperta e gli chiedo cosa vedeva lui.','Qualcosa afferra la maniglia dal lato che non dovrebbe esistere. Il corridoio si accorcia di colpo e la porta ti raggiunge prima che tu riesca a lasciarla.'),
+  D('Infiltro il telefono nella fessura per filmare.','Sul display compare la tua mano dall’altra parte della porta, anche se la stai ancora vedendo davanti a te. Poi entrambe vengono tirate nello stesso momento.')
+]},
+t2_serious_survive:{msgs:[
+  M('Tiri la porta verso di te.','sys'),
+  M('Non oppone resistenza finché manca un solo centimetro.','sys',650),
+  M('Poi qualcosa dall’altra parte tira nel verso opposto.','sys',800),
+  M('Stringi la maniglia e riesci a chiuderla. La serratura scatta da sola.','sys',700),
+  M('Mi sono dimenticato da che lato la guardavo.','them',650),
+  M('Per poco...','them',700)
+],choices:[
+  R('“Per poco non mi facevi ammazzare.”','t2_trust_protocol',x=>{x.trust-=2;x.sceptic=true}),
+  R('“Non dirmi più cosa fare se non sei sicuro.”','t2_trust_protocol',x=>{x.trust-=1;x.sceptic=true;x.independent=true}),
+  R('“Continua a parlarmi. Ma distingui i ricordi dalle ipotesi.”','t2_trust_protocol',x=>{x.trust+=1;x.independent=true})
+]},
+t2_after_serious:{msgs:[
+  M('Ti allontani.','sys'),
+  M('La maniglia gira lentamente una volta. Nessuno apre.','sys',800),
+  M('Stavo per sbagliare comunque.','them',550),
+  M('Da questo momento facciamo diversamente.','them',650)
+],choices:[
+  C('“Come?”','t2_trust_protocol'),
+  C('“Prima dimmi se posso ancora fidarmi di te.”','t2_trust_protocol')
+]},
+t2_trust_protocol:{msgs:[
+  M('Hai ragione a dubitare.','them'),
+  M('Da adesso scrivo RICORDO quando l’ho visto davvero.','them',650),
+  M('CREDO quando sto ricostruendo.','them',650),
+  M('Se dimentico di farlo, fermami.','them',650),
+  M('La porta nuova emette un colpo secco. Non dall’altra parte. Dal legno stesso.','sys',850),
+  M('Il corridoio sembra allungarsi di almeno due metri.','sys',750)
+],effect:async()=>{tMut(x=>{x.directionClue=true})},choices:[
+  C('Guardo quante porte ci sono adesso.','t2_multi',true)
+]},
+t2_multi:{msgs:[
+  M('Ora davanti a te ci sono quattro porte. Dovrebbero essercene tre.','sys'),
+  M('Quella nuova non è più tra il bagno e la camera. È in fondo al corridoio.','sys',750),
+  M('RICORDO: le porte sbagliate cambiano posto quando smetti di guardarle.','them',650),
+  M('CREDO: quella in fondo è la stessa di prima.','them',650)
+],effect:async()=>{
+  await new Promise(r=>setTimeout(r,650));
+  pushMessage('anomaly','APRILA VERSO CASA.','them');
+  await add('L’altra conversazione vibra. Un solo messaggio.','sys',450,'unknown');
+  await add('Non seguirla ancora.','them',600,'unknown');
+},choices:[
+  C('“Cosa ricordi esattamente?”','t2_deep_dialog'),
+  C('Segno le porte senza aprirle.','t2_mark_doors',true),
+  C('Apro la porta della cucina per controllare.','t2_kitchen_test',true),
+  C('Seguo il messaggio della chat glitchata.','t2_follow_anomaly',true)
+]},
+t2_deep_dialog:{msgs:[
+  M('RICORDO: una porta mi riportava nello stesso corridoio.','them'),
+  M('RICORDO: se la chiudevo dietro di me, il corridoio diventava più corto.','them',650),
+  M('CREDO: questa cosa ha bisogno che tu scelga un lato.','them',700),
+  M('Non ricordo cosa succede se rifiuti di scegliere.','them',700)
+],choices:[
+  C('“Perché dovrei continuare a fidarmi di te?”','t2_deep_trust'),
+  C('Segno tutte le porte.','t2_mark_doors',true),
+  C('Controllo la cucina.','t2_kitchen_test',true)
+]},
+t2_deep_trust:{msgs:[
+  M('Non dovresti.','them'),
+  M('Fidati dei dettagli che puoi controllare. Non di me.','them',700),
+  M('Se ti dico qualcosa che contraddice quello che hai davanti, scegli quello che hai davanti.','them',750),
+  M('E se non ricordo, costringimi a dirlo.','them',650)
+],effect:async()=>{tMut(x=>{x.independent=true;x.noneClue=true;x.trust-=1})},choices:[
+  C('Segno le porte.','t2_mark_doors',true),
+  C('Controllo la cucina.','t2_kitchen_test',true),
+  C('Chiedo della chat glitchata.','t2_follow_anomaly')
+]},
+t2_mark_doors:{msgs:[
+  M('Resti nello stesso punto e fotografi le quattro porte, una dopo l’altra.','sys'),
+  M('Riapri subito le immagini.','sys',650),
+  M('Nella prima foto la porta in fondo ha una maniglia. Nella seconda no. Nella terza è un semplice rettangolo di muro.','sys',800),
+  M('Dal vivo, invece, la porta è ancora lì.','sys',700),
+  M('RICORDO: io non avevo fatto fotografie.','them',550),
+  M('CREDO: cambia quando la tratti come un passaggio.','them',700)
+],effect:async()=>{
+  tMut(x=>{x.marked=true;x.noneClue=true;x.independent=true});
+  await new Promise(r=>setTimeout(r,600));
+  pushMessage('anomaly','NON TUTTE LE PORTE HANNO DUE LATI.','them');
+  await add('La chat glitchata invia un secondo messaggio.','sys',450,'unknown');
+},choices:[
+  R('“Forse quella chat sta cercando di aiutarmi.”','t2_orientation_test',x=>{x.anomalyClue=true}),
+  C('“Non mi fido di quella chat.”','t2_orientation_test'),
+  D('Apro la porta che nelle foto perde la maniglia.','La porta non oppone resistenza perché non c’è niente da aprire. La tua mano attraversa il pannello e, dall’altra parte, qualcosa la stringe.')
+]},
+t2_kitchen_test:{msgs:[
+  M('Apri lentamente la porta della cucina.','sys'),
+  M('Dietro non c’è la cucina.','sys',650),
+  M('C’è lo stesso corridoio in cui sei, visto da circa due metri dietro le tue spalle.','sys',800),
+  M('Nell’altro corridoio vedi la tua schiena. Tu, però, non ti sei voltato.','sys',750),
+  M('RICORDO: questa era quella che mi riportava indietro.','them',550),
+  M('Non entrare.','them',500)
+],effect:async()=>{tMut(x=>{x.opened++;x.loopClue=true})},choices:[
+  R('La richiudo senza attraversare.','t2_orientation_test',x=>{x.closedAfterOpen=true},true),
+  D('Faccio un passo nel corridoio dall’altra parte.','Attraversi. La figura che stavi guardando fa un passo nello stesso momento, ma verso di te. Quando vi incontrate sulla soglia, uno solo dei due torna indietro.'),
+  C('La lascio aperta e osservo l’altra versione di me.','t2_kitchen_open',true)
+]},
+t2_kitchen_open:{msgs:[
+  M('Lasci la porta aperta.','sys'),
+  M('Nell’altro corridoio la tua figura rimane immobile per qualche secondo.','sys',700),
+  M('Poi alza lentamente il telefono verso l’orecchio.','sys',800),
+  M('Il tuo telefono comincia a squillare senza mostrare nessuna chiamata.','sys',700),
+  M('Chiudila.','them',400)
+],effect:async()=>{tMut(x=>{x.leftDoorOpen=true})},choices:[
+  R('La chiudo prima che la figura si muova.','t2_orientation_test',x=>{x.closedAfterOpen=true;x.leftDoorOpen=false},true),
+  D('Aspetto di vedere cosa fa.','La figura dall’altra parte avanza. Tu non ti muovi, ma i suoi passi li senti alle tue spalle. Quando finalmente ti volti, la porta della cucina è già chiusa.')
+]},
+t2_follow_anomaly:{msgs:[
+  M('Il messaggio della chat glitchata è ancora lì: “APRILA VERSO CASA.”','sys'),
+  M('Non farlo ancora.','them',500),
+  M('CREDO: quella conversazione vuole che qualcosa attraversi.','them',650),
+  M('Non so in quale direzione.','them',650)
+],effect:async()=>{tMut(x=>{x.anomalyClue=true})},choices:[
+  C('“Perché pensi che voglia far passare qualcosa?”','t2_anomaly_reason'),
+  C('Non la seguo. Controllo prima il verso.','t2_orientation_test',true),
+  C('La seguo e apro la porta nuova verso casa.','t2_anomaly_open',true)
+]},
+t2_anomaly_reason:{msgs:[
+  M('Perché non ti dice di entrare. Ti dice come aprire.','them'),
+  M('RICORDO: quando una porta si apriva nel verso sbagliato, sentivo passi senza vedere nessuno.','them',700),
+  M('CREDO: il verso decide chi sta entrando e chi sta uscendo.','them',700)
+],effect:async()=>{tMut(x=>{x.anomalyClue=true;x.directionClue=true})},choices:[
+  C('Controllo l’ingresso.','t2_orientation_test',true),
+  C('Segno prima le porte.','t2_mark_doors',true)
+]},
+t2_anomaly_open:{msgs:[
+  M('Segui il messaggio e spingi la porta nuova verso l’interno della casa.','sys'),
+  M('Il buio oltre la soglia si gonfia come se avesse preso fiato.','sys',750),
+  M('Un passo. Poi un altro. Nessuna figura. Solo il rumore.','sys',750),
+  M('CHIUDILA.','them',450),
+  M('ADESSO.','them',350)
+],effect:async()=>{tMut(x=>{x.opened++;x.anomalyClue=true})},choices:[
+  R('La chiudo prima del terzo passo.','t2_orientation_test',x=>{x.closedAfterOpen=true;x.trust-=1},true),
+  D('Arretro e lascio che si apra da sola.','Il terzo passo arriva dentro casa. Il quarto arriva dietro di te. La porta resta aperta, ma il corridoio oltre è completamente vuoto.'),
+  D('Chiedo alla chat glitchata cosa sta entrando.','La chat risponde con una foto. Sei tu davanti alla porta, ripreso da dietro. Nell’immagine qualcosa ha già superato la soglia.')
+]},
+t2_orientation_test:{msgs:[
+  M('Tutte e quattro le maniglie girano nello stesso istante.','sys'),
+  M('Solo una porta si muove: quella d’ingresso.','sys',700),
+  M('Si apre da sola della larghezza di un dito.','sys',700),
+  M('RICORDO: questo è il momento in cui ho perso la casa.','them',600),
+  M('CREDO: se si apre verso casa, devi attraversarla prima che si apra del tutto.','them',750)
+],choices:[
+  C('“RICORDO o CREDO?”','t2_final_question'),
+  C('“Perché dovrei attraversarla?”','t2_final_explain'),
+  C('Faccio quello che dice e mi avvicino.','t2_prepare_cross',true),
+  C('Non mi muovo finché non controllo il verso.','t2_final_inspect',true)
+]},
+t2_final_question:{msgs:[
+  M('CREDO.','them'),
+  M('...','them',700),
+  M('Mi dispiace. Non ho un ricordo pulito di questo punto.','them',700),
+  M('Io l’ho attraversata. Dopo non ero più sicuro di essere tornato nello stesso posto.','them',800)
+],effect:async()=>{tMut(x=>{x.sceptic=true;x.independent=true})},choices:[
+  C('“Allora decido io.”','t2_final_inspect'),
+  C('“Dimmi comunque cosa faresti.”','t2_final_explain')
+]},
+t2_final_explain:{msgs:[
+  M('RICORDO: quando resta aperta troppo a lungo, qualcosa usa il corridoio.','them'),
+  M('CREDO che attraversare per primi impedisca il passaggio.','them',700),
+  M('Ma non posso promettertelo.','them',650),
+  M('Prima controlla da che lato si sta aprendo.','them',650)
+],effect:async()=>{tMut(x=>{x.directionClue=true})},choices:[
+  C('Controllo il telaio e il pavimento.','t2_final_inspect',true),
+  C('Mi avvicino per attraversare.','t2_prepare_cross',true)
+]},
+t2_prepare_cross:{msgs:[
+  M('Ti avvicini alla porta d’ingresso.','sys'),
+  M('Oltre la fessura c’è il tuo stesso corridoio, ma visto dall’estremità opposta.','sys',750),
+  M('Sul pavimento, le assi cambiano direzione esattamente sulla soglia.','sys',700),
+  M('Da qualche parte oltre la porta, qualcosa cammina verso di te.','sys',800),
+  M('Adesso.','them',450)
+],choices:()=>thresholdFinalChoices()},
+t2_final_inspect:{msgs:()=>[
+  M('Non tocchi la maniglia. Guardi prima il telaio.','sys'),
+  M('La porta d’ingresso non è più fissata al muro nello stesso modo. Il bordo destro proietta un’ombra; quello sinistro no.','sys',750),
+  M('Oltre la fessura c’è il tuo corridoio, visto dall’estremità opposta.','sys',750),
+  M('Una sagoma attraversa il fondo. Troppo lontana per distinguerla.','sys',800),
+  M(thresholdState().independent?'Il Numero Sconosciuto non ti dà un ordine.':'Il Numero Sconosciuto scrive, poi cancella il messaggio.','sys',650),
+  M(thresholdState().independent?'Controlla tu. Io posso sbagliare.':'CREDO: aprila verso casa.','them',650)
+],effect:async()=>{
+  const st=thresholdState();
+  if(st.marked||st.independent){
+    await add('Spegni per un istante lo schermo per eliminare il riflesso. Nel vetro nero non compare nessuna porta in fondo al corridoio. Solo muro.','sys',750,'unknown');
+    tMut(x=>{x.noneClue=true});
+  }
+},choices:()=>thresholdFinalChoices()},
+t2_end_closed:{msgs:[
+  M('Aspetti che la porta tenti di aprirsi verso di te.','sys'),
+  M('Quando il legno cede, non tocchi la maniglia: spingi il pannello nel verso opposto.','sys',700),
+  M('La porta si chiude con un colpo sordo.','sys',650),
+  M('Nello stesso istante, tutte le altre porte della casa sbattono una dopo l’altra.','sys',850),
+  M('Silenzio.','sys',900),
+  M('Ha funzionato.','them',550),
+  M('...','them',750),
+  M('No. Aspetta.','them',650),
+  M('Dall’altra parte qualcuno prova lentamente la maniglia. Una volta. Due. Tre.','sys',850),
+  M('Non è finita. Ma per ora è rimasto fuori.','them',700)
+],chapter2End:{id:'closed',title:'LA PORTA CHIUSA',note:'Hai contenuto la soglia. Qualcuno, però, è ancora dall’altra parte.'}},
+t2_end_beyond:{msgs:[
+  M('Attraversi senza richiudere la porta dietro di te.','sys'),
+  M('Per un istante non senti niente, nemmeno i tuoi passi.','sys',700),
+  M('Poi il suono torna tutto insieme.','sys',650),
+  M('Sei nella tua casa. Stessa disposizione. Stessi mobili.','sys',700),
+  M('Ma le fotografie alle pareti sono capovolte e tutte le porte interne sono aperte.','sys',800),
+  M('Tranne una.','sys',700),
+  M('Sei passato?','them',500),
+  M('Rispondimi.','them',650),
+  M('Scrivi “sì”. Il messaggio compare nella chat come se l’avessi ricevuto tu.','sys',850),
+  M('La porta alle tue spalle si chiude.','sys',700)
+],chapter2End:{id:'beyond',title:'OLTRE LA SOGLIA',note:'Hai attraversato volontariamente. La casa sembra la stessa. Non lo è.'}},
+t2_end_reverse:{msgs:[
+  M('Non attraversi.','sys'),
+  M('Apri la porta nel verso opposto, lasciando che il corridoio oltre “veda” casa tua solo per pochi centimetri.','sys',750),
+  M('I passi accelerano.','sys',650),
+  M('Quando arrivano alla soglia, fai un passo di lato.','sys',650),
+  M('Qualcosa passa. Non lo vedi. Senti soltanto l’aria spostarsi.','sys',800),
+  M('La porta si chiude da sola.','sys',700),
+  M('Per cinque secondi il telefono perde completamente il segnale interno della chat.','sys',700),
+  M('Poi il Numero Sconosciuto torna online.','sys',650),
+  M('Non credo che tu abbia rimandato indietro la cosa giusta.','them',800)
+],chapter2End:{id:'reverse',title:'IL VERSO SBAGLIATO',note:'Hai costretto qualcosa ad attraversare nella direzione opposta. Non sai cosa.'}},
+t2_end_enter:{msgs:[
+  M('Segui il suo consiglio e apri la porta verso casa.','sys'),
+  M('Per un secondo non succede niente.','sys',700),
+  M('Poi l’aria del corridoio diventa gelida.','sys',650),
+  M('Qualcosa supera la soglia senza fare rumore.','sys',800),
+  M('Tu non vedi nulla.','sys',650),
+  M('Ok. Adesso chiudila.','them',500),
+  M('Alzi la mano.','sys',600),
+  M('La porta non c’è più. Davanti a te c’è soltanto il muro dell’ingresso.','sys',850),
+  M('Perché non la vedo più?','them',650),
+  M('Dal fondo della casa arriva il rumore di una tavola del pavimento che cede sotto un peso.','sys',900),
+  M('Adesso è qui.','them',700)
+],chapter2End:{id:'enter',title:'ENTRA PURE',note:'Sei sopravvissuto. Qualcosa, però, ha attraversato la soglia al posto tuo.'}},
+t2_end_none:{msgs:[
+  M('Spegni lo schermo.','sys'),
+  M('Non tocchi nessuna maniglia. Non apri. Non chiudi. Non attraversi.','sys',750),
+  M('Nel buio appoggi una mano al muro e cammini lungo il corridoio.','sys',700),
+  M('Dove dovrebbe esserci la porta nuova, le dita incontrano soltanto parete fredda.','sys',800),
+  M('Continui a camminare. Nessun telaio. Nessuna fessura. Nessuna soglia.','sys',800),
+  M('Quando riaccendi il telefono, il corridoio ha di nuovo la lunghezza giusta.','sys',750),
+  M('Dove l’hai chiusa?','them',550),
+  M('Non l’hai chiusa.','sys',650),
+  M('Dopo qualche secondo arriva un ultimo messaggio.','sys',700),
+  M('Allora non era una porta.','them',750)
+],chapter2End:{id:'none',title:'NESSUNA PORTA',note:'Hai smesso di giocare secondo le regole della soglia. Per questa volta, ha funzionato.'}}
 };
 async function deliverFirstMessage(){if(!S.started||S.firstMessageSent||S.ending||S.chapterDone)return;S.firstMessageSent=true;const t=makeThread('unknown');try{if(navigator.vibrate)navigator.vibrate([70,45,70])}catch(_){}const m={text:'NON APRIRE.',who:'them',at:gameSec()};t.messages.push(m);t.lastAt=m.at;t.unread=(t.unread||0)+1;renderHub();save()}
-async function start(){if(S.started)return;S.started=true;S.startAt=Date.now();S.activeThread=null;S.storyBegun=false;S.firstMessageSent=false;S.threads={};save();$('#overlay').classList.add('hidden');chatScreen.classList.add('hidden');galleryScreen.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();startClock();firstMessageTimer=setTimeout(deliverFirstMessage,3000)}
+async function start(){
+  if(S.started)return;
+  if((META_STATE.chapterReached||1)>=2&&META_STATE.chapterPath==='threshold'){
+    prepareThresholdChapter2({preserveThreads:false});
+    return;
+  }
+  S.started=true;S.startAt=Date.now();S.activeThread=null;S.storyBegun=false;S.firstMessageSent=false;S.threads={};S.chapter2Active=false;S.chapter2Ending=null;S.chapterPauseSec=null;S.threshold=null;
+  save();$('#overlay').classList.add('hidden');chatScreen.classList.add('hidden');galleryScreen.classList.add('hidden');hubScreen.classList.remove('hidden');renderHub();startClock();firstMessageTimer=setTimeout(deliverFirstMessage,3000)
+}
 const menuPanel=$('#menuPanel'),confirmPanel=$('#confirmPanel');let confirmAction=null;
 function openMenu(){menuPanel.classList.remove('hidden')}
 $('#menuBtn').addEventListener('click',openMenu);$('#hubMenuBtn').addEventListener('click',openMenu);
@@ -313,9 +838,14 @@ function ask(kind){menuPanel.classList.add('hidden');confirmAction=kind;$('#conf
 $('#loopReset').addEventListener('click',()=>ask('loop'));$('#fullReset').addEventListener('click',()=>ask('all'));
 $('#confirmNo').addEventListener('click',()=>{confirmPanel.classList.add('hidden');confirmAction=null});
 $('#confirmYes').addEventListener('click',()=>{const a=confirmAction;confirmPanel.classList.add('hidden');a==='all'?resetAll():resetLoop()});
-$('#start').addEventListener('click',start);$('#restart').addEventListener('click',resetLoop);
+$('#start').addEventListener('click',start);$('#restart').addEventListener('click',restartChapter1PreserveKnowledge);
 $('#notify').addEventListener('click',async()=>{try{if(!('Notification'in window))throw 0;const p=await Notification.requestPermission();$('#notify').textContent=p==='granted'?'NOTIFICHE ATTIVE':'NOTIFICHE NON DISPONIBILI'}catch(_){$('#notify').textContent='NOTIFICHE NON DISPONIBILI'}});
 window.addEventListener('error',()=>{});
-// Una partita lasciata a metà viene riavviata in modo pulito: niente ricostruzioni parziali della chat.
+// Una partita lasciata a metà viene riavviata in modo pulito. Se esiste il checkpoint del Capitolo II, la Home offre il ritorno a LA SOGLIA.
 try{const old=JSON.parse(localStorage.getItem(KEY));if(old&&old.started&&!old.chapterDone&&!old.ending){localStorage.removeItem(KEY)}}catch(_){localStorage.removeItem(KEY)}
+if((META_STATE.chapterReached||1)>=2&&META_STATE.chapterPath==='threshold'){
+  const startBtn=$('#start'), restartBtn=$('#restart');
+  if(startBtn){startBtn.innerHTML='CONTINUA — CAPITOLO 2 <span>›</span>';startBtn.classList.add('chapter2ContinueHome')}
+  if(restartBtn){restartBtn.textContent='RICOMINCIA DAL CAPITOLO 1';restartBtn.classList.remove('hidden')}
+}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').then(r=>r.update()).catch(()=>{});
