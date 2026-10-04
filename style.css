@@ -375,12 +375,94 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
   animation:audioNoticeReveal 3.05s cubic-bezier(.22,.72,.18,1) both;
 }
 .audioNoticeIcon{
+  position:relative;
+  width:120px;
+  height:78px;
+  margin:0 auto 20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  color:#d3d9df;
+  opacity:.92;
+  filter:drop-shadow(0 0 10px rgba(255,255,255,.08));
+}
+.audioHeadphones{
+  position:relative;
+  width:54px;
+  height:54px;
   display:block;
-  margin:0 auto 18px;
-  font-size:16px;
-  color:#aeb4ba;
-  opacity:.7;
-  text-shadow:1px 0 rgba(255,0,76,.22),-1px 0 rgba(0,208,255,.2);
+}
+.audioBand{
+  position:absolute;
+  left:50%;
+  top:5px;
+  width:34px;
+  height:20px;
+  transform:translateX(-50%);
+  border:3px solid rgba(226,231,236,.92);
+  border-bottom:none;
+  border-radius:24px 24px 0 0;
+  box-shadow:1px 0 rgba(255,0,76,.15),-1px 0 rgba(0,208,255,.14);
+}
+.audioCup{
+  position:absolute;
+  top:23px;
+  width:12px;
+  height:22px;
+  border:3px solid rgba(226,231,236,.92);
+  background:rgba(255,255,255,.03);
+  box-shadow:1px 0 rgba(255,0,76,.15),-1px 0 rgba(0,208,255,.14);
+}
+.audioCupL{
+  left:8px;
+  border-right-width:4px;
+  border-radius:12px 5px 9px 12px;
+}
+.audioCupR{
+  right:8px;
+  border-left-width:4px;
+  border-radius:5px 12px 12px 9px;
+}
+.audioWave{
+  position:absolute;
+  top:50%;
+  width:14px;
+  height:14px;
+  margin-top:-7px;
+  border:2px solid rgba(210,218,226,.82);
+  border-radius:50%;
+  opacity:0;
+  box-shadow:1px 0 rgba(255,0,76,.14),-1px 0 rgba(0,208,255,.12);
+}
+.audioWave.left{
+  left:13px;
+  border-right-color:transparent;
+  border-top-color:transparent;
+  transform-origin:right center;
+}
+.audioWave.right{
+  right:13px;
+  border-left-color:transparent;
+  border-top-color:transparent;
+  transform-origin:left center;
+}
+.audioWave.w1{
+  animation:audioWavePulse 1.15s ease-out infinite;
+}
+.audioWave.w2{
+  animation:audioWavePulse 1.15s ease-out infinite .28s;
+}
+.audioWave.left.w2,.audioWave.right.w2{
+  width:22px;
+  height:22px;
+  margin-top:-11px;
+}
+@keyframes audioWavePulse{
+  0%{opacity:0;transform:scale(.58)}
+  18%{opacity:.88}
+  58%{opacity:.52}
+  100%{opacity:0;transform:scale(1.18)}
 }
 .audioNotice p{
   margin:0;
@@ -405,6 +487,7 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 @keyframes audioNoticeNoise{0%{transform:translateY(0)}100%{transform:translateY(2px)}}
 @media (prefers-reduced-motion:reduce){
   .audioNotice::after{animation:none}
+  .audioWave{animation:none;opacity:.72}
   .audioNoticeInner{animation:audioNoticeRevealReduced 2.25s ease both}
   @keyframes audioNoticeRevealReduced{0%{opacity:0}18%,78%{opacity:1}100%{opacity:0}}
 }
