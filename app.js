@@ -23,6 +23,10 @@ const MEDIA_CATALOG={
   entry_photo_2:{id:'entry_photo_2',src:'./entry-photo-2.png',title:'Foto 2',kind:'immagine ricevuta',mediaType:'image'},
   room_photo_bed:{id:'room_photo_bed',src:'./room-photo-bed.jpg',title:'Foto camera',kind:'foto scattata',mediaType:'image'},
   mirror_photo:{id:'mirror_photo',src:'./mirror-photo.jpg',title:'Foto specchio',kind:'foto scattata',mediaType:'image'},
+  door_photo_1:{id:'door_photo_1',src:'./door-photo-1.png',title:'Porta 1',kind:'foto scattata',mediaType:'image'},
+  door_photo_2:{id:'door_photo_2',src:'./door-photo-2.png',title:'Porta 2',kind:'foto scattata',mediaType:'image'},
+  door_photo_3:{id:'door_photo_3',src:'./door-photo-3.png',title:'Porta 3',kind:'foto scattata',mediaType:'image'},
+  door_photo_4:{id:'door_photo_4',src:'./door-photo-4.png',title:'Porta 4',kind:'foto scattata',mediaType:'image'},
   breath_20260929:{id:'breath_20260929',src:'./respiro_00_03.wav',title:'Registrazione',kind:'audio registrato',mediaType:'audio',dateLabel:'2026-09-29',durationLabel:'-00:03'},
   breath_20260930:{id:'breath_20260930',src:'./respiro_00_03.wav',title:'Registrazione',kind:'audio ricevuto',mediaType:'audio',dateLabel:'2026-09-30',durationLabel:'-00:03'}
 };
@@ -641,12 +645,17 @@ t2_deep_trust:{msgs:[
 t2_mark_doors:{msgs:[
   M('Resti nello stesso punto e fotografi le quattro porte, una dopo l’altra.','sys'),
   M('Riapri subito le immagini.','sys',650),
-  M('Nella prima foto la porta in fondo ha una maniglia. Nella seconda no. Nella terza è un semplice rettangolo di muro.','sys',800),
+  M('Nella prima foto la porta in fondo ha una maniglia. Nella seconda no. Nella terza si vede solo il muro.','sys',800),
+  M('Nella quarta la maniglia non è dove dovrebbe essere.','sys',650),
   M('Dal vivo, invece, la porta è ancora lì.','sys',700),
   M('RICORDO: io non avevo fatto fotografie.','them',550),
   M('CREDO: cambia quando la tratti come un passaggio.','them',700)
 ],effect:async()=>{
   tMut(x=>{x.marked=true;x.noneClue=true;x.independent=true});
+  unlockMedia('door_photo_4');
+  unlockMedia('door_photo_3');
+  unlockMedia('door_photo_2');
+  unlockMedia('door_photo_1');
   await new Promise(r=>setTimeout(r,600));
   pushMessage('anomaly','NON TUTTE LE PORTE HANNO DUE LATI.','them');
   await add('La chat glitchata invia un secondo messaggio.','sys',450,'unknown');
