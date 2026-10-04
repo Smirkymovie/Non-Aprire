@@ -427,43 +427,42 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 .audioWave{
   position:absolute;
   top:50%;
-  width:14px;
-  height:14px;
-  margin-top:-7px;
-  border:2px solid rgba(210,218,226,.82);
-  border-radius:50%;
+  height:12px;
+  margin-top:-6px;
   opacity:0;
+  box-sizing:border-box;
+  border:2.5px solid rgba(210,218,226,.86);
+  border-radius:0 16px 16px 0;
+  border-left:none;
   box-shadow:1px 0 rgba(255,0,76,.14),-1px 0 rgba(0,208,255,.12);
 }
 .audioWave.left{
-  left:13px;
-  border-right-color:transparent;
-  border-top-color:transparent;
+  right:calc(100% - 20px);
   transform-origin:right center;
+  border-radius:16px 0 0 16px;
+  border-right:none;
+  border-left:2.5px solid rgba(210,218,226,.86);
 }
 .audioWave.right{
-  right:13px;
-  border-left-color:transparent;
-  border-top-color:transparent;
+  left:calc(100% - 20px);
   transform-origin:left center;
 }
 .audioWave.w1{
-  animation:audioWavePulse 1.15s ease-out infinite;
+  width:11px;
+  animation:audioWavePulse 1s ease-out infinite;
 }
 .audioWave.w2{
-  animation:audioWavePulse 1.15s ease-out infinite .28s;
-}
-.audioWave.left.w2,.audioWave.right.w2{
-  width:22px;
-  height:22px;
-  margin-top:-11px;
+  width:17px;
+  animation:audioWavePulse 1s ease-out infinite .18s;
 }
 @keyframes audioWavePulse{
-  0%{opacity:0;transform:scale(.58)}
-  18%{opacity:.88}
-  58%{opacity:.52}
-  100%{opacity:0;transform:scale(1.18)}
+  0%{opacity:0;transform:translateX(0) scale(.82)}
+  18%{opacity:.9}
+  62%{opacity:.56}
+  100%{opacity:0;transform:translateX(var(--waveShift,0)) scale(1.06)}
 }
+.audioWave.left.w1,.audioWave.left.w2{--waveShift:-3px}
+.audioWave.right.w1,.audioWave.right.w2{--waveShift:3px}
 .audioNotice p{
   margin:0;
   font:500 clamp(18px,4.7vw,25px)/1.42 Georgia,'Times New Roman',serif;
