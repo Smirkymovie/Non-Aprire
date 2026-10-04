@@ -336,3 +336,75 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 .chapterEnd.chapterTwoEnd:before{content:"CAPITOLO 2"!important}
 .chapterEnd.chapterTwoEnd:after{content:"COMPLETATO"!important}
 .chapterEnd.chapterTwoEnd p{font-size:19px;letter-spacing:.08em;text-transform:uppercase}
+
+
+/* UI35 — pre-home headphones / volume notice */
+.audioNotice{
+  position:fixed;
+  inset:0;
+  z-index:100000;
+  display:grid;
+  place-items:center;
+  min-height:100dvh;
+  padding:max(28px,env(safe-area-inset-top)) 28px max(28px,env(safe-area-inset-bottom));
+  box-sizing:border-box;
+  background:#000;
+  color:#f4f4f4;
+  overflow:hidden;
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  transition:opacity .42s ease,visibility .42s step-end;
+}
+.audioNotice::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.18;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.025) 0 1px,transparent 1px 4px);
+  animation:audioNoticeNoise .17s steps(2,end) infinite;
+}
+.audioNoticeInner{
+  position:relative;
+  z-index:1;
+  width:min(520px,88vw);
+  text-align:center;
+  opacity:0;
+  transform:translateY(7px);
+  animation:audioNoticeReveal 3.05s cubic-bezier(.22,.72,.18,1) both;
+}
+.audioNoticeIcon{
+  display:block;
+  margin:0 auto 18px;
+  font-size:16px;
+  color:#aeb4ba;
+  opacity:.7;
+  text-shadow:1px 0 rgba(255,0,76,.22),-1px 0 rgba(0,208,255,.2);
+}
+.audioNotice p{
+  margin:0;
+  font:500 clamp(18px,4.7vw,25px)/1.42 Georgia,'Times New Roman',serif;
+  letter-spacing:.015em;
+  text-wrap:balance;
+  text-shadow:0 0 22px rgba(255,255,255,.08);
+}
+.audioNotice.leaving{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+@keyframes audioNoticeReveal{
+  0%{opacity:0;transform:translateY(7px);filter:blur(3px)}
+  16%{opacity:1;transform:none;filter:blur(0)}
+  74%{opacity:1;transform:none;filter:blur(0)}
+  82%{opacity:.9;transform:translateX(-1px);text-shadow:2px 0 rgba(255,0,76,.2),-2px 0 rgba(0,208,255,.18)}
+  85%{opacity:1;transform:translateX(1px)}
+  100%{opacity:0;transform:none;filter:blur(1px)}
+}
+@keyframes audioNoticeNoise{0%{transform:translateY(0)}100%{transform:translateY(2px)}}
+@media (prefers-reduced-motion:reduce){
+  .audioNotice::after{animation:none}
+  .audioNoticeInner{animation:audioNoticeRevealReduced 2.25s ease both}
+  @keyframes audioNoticeRevealReduced{0%{opacity:0}18%,78%{opacity:1}100%{opacity:0}}
+}

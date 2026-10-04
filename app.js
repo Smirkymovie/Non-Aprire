@@ -6,6 +6,25 @@ const contactName=$('#contactName'), contactStatus=$('#status'), toast=$('#messa
 const galleryFab=$('#galleryFab'), backGallery=$('#backGallery'), galleryGrid=$('#galleryGrid'), galleryEmpty=$('#galleryEmpty'), galleryClock=$('#galleryClock');
 const mediaViewer=$('#mediaViewer'), mediaFull=$('#mediaFull'), mediaAudio=$('#mediaAudio'), audioViewerCard=$('#audioViewerCard'), audioViewerDuration=$('#audioViewerDuration'), mediaTitle=$('#mediaTitle'), mediaMeta=$('#mediaMeta'), closeMedia=$('#closeMedia');
 const chapterTransition=$('#chapterTransition'), thresholdAudio=$('#thresholdAudio');
+
+const audioNotice=$('#audioNotice');
+function dismissAudioNotice(){
+  if(!audioNotice)return;
+  audioNotice.classList.add('leaving');
+  setTimeout(()=>{try{audioNotice.remove()}catch(_){}},480);
+}
+if(audioNotice){
+  // Keep the home hidden behind a real black layer for a brief launch notice.
+  const reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(dismissAudioNotice,reduced?2250:3050);
+  audioNotice.addEventListener('animationend',e=>{
+    if(e.animationName==='audioNoticeReveal'||e.animationName==='audioNoticeRevealReduced')dismissAudioNotice();
+  },{once:true});
+}
+window.addEventListener('pageshow',e=>{
+  // Safari may restore a page from its back/forward cache; never leave the splash blocking the game.
+  if(e.persisted&&audioNotice)dismissAudioNotice();
+});
 const KEY='nonaprire_v10_state', META='nonaprire_v10_meta', GALLERY_KEY='nonaprire_v10_gallery';
 const START=60, END=48*60, LIMIT=(END-START)*1000;
 let S={started:false,alive:true,ending:false,chapterDone:false,chapterReached:1,chapterPath:null,chapter2Active:false,chapter2Ending:null,chapterPauseSec:null,startAt:0,node:'intro',history:[],loops:0,threads:{},activeThread:null,storyBegun:false,firstMessageSent:false,threshold:null};
