@@ -427,42 +427,56 @@ main{background:#020406 url('./bg-chat.jpg') center/cover no-repeat}
 .audioWave{
   position:absolute;
   top:50%;
-  height:12px;
-  margin-top:-6px;
   opacity:0;
   box-sizing:border-box;
-  border:2.5px solid rgba(210,218,226,.86);
-  border-radius:0 16px 16px 0;
-  border-left:none;
-  box-shadow:1px 0 rgba(255,0,76,.14),-1px 0 rgba(0,208,255,.12);
+  border-style:solid;
+  border-color:rgba(218,224,230,.86);
+  filter:drop-shadow(1px 0 rgba(255,0,76,.12)) drop-shadow(-1px 0 rgba(0,208,255,.11));
+  will-change:opacity,transform;
 }
-.audioWave.left{
-  right:calc(100% - 20px);
-  transform-origin:right center;
-  border-radius:16px 0 0 16px;
-  border-right:none;
-  border-left:2.5px solid rgba(210,218,226,.86);
-}
+/* Onde laterali come un'icona Wi-Fi ruotata di 90°: partono dai padiglioni e si aprono verso l'esterno. */
 .audioWave.right{
-  left:calc(100% - 20px);
+  left:82px;
+  border-left:0;
+  border-radius:0 999px 999px 0;
   transform-origin:left center;
 }
+.audioWave.left{
+  right:82px;
+  border-right:0;
+  border-radius:999px 0 0 999px;
+  transform-origin:right center;
+}
 .audioWave.w1{
-  width:11px;
-  animation:audioWavePulse 1s ease-out infinite;
+  width:8px;
+  height:18px;
+  margin-top:-9px;
+  border-width:2.2px;
+  animation:audioWifiWave 1.22s ease-out infinite;
 }
 .audioWave.w2{
-  width:17px;
-  animation:audioWavePulse 1s ease-out infinite .18s;
+  width:13px;
+  height:28px;
+  margin-top:-14px;
+  border-width:2.2px;
+  animation:audioWifiWave 1.22s ease-out infinite .15s;
 }
-@keyframes audioWavePulse{
-  0%{opacity:0;transform:translateX(0) scale(.82)}
-  18%{opacity:.9}
-  62%{opacity:.56}
-  100%{opacity:0;transform:translateX(var(--waveShift,0)) scale(1.06)}
+.audioWave.w3{
+  width:19px;
+  height:39px;
+  margin-top:-19.5px;
+  border-width:2.2px;
+  animation:audioWifiWave 1.22s ease-out infinite .30s;
 }
-.audioWave.left.w1,.audioWave.left.w2{--waveShift:-3px}
-.audioWave.right.w1,.audioWave.right.w2{--waveShift:3px}
+.audioWave.right.w1{left:83px}.audioWave.right.w2{left:86px}.audioWave.right.w3{left:90px}
+.audioWave.left.w1{right:83px}.audioWave.left.w2{right:86px}.audioWave.left.w3{right:90px}
+@keyframes audioWifiWave{
+  0%{opacity:0;transform:scale(.78)}
+  16%{opacity:.92;transform:scale(.9)}
+  48%{opacity:.7;transform:scale(1)}
+  78%{opacity:.3;transform:scale(1.04)}
+  100%{opacity:0;transform:scale(1.08)}
+}
 .audioNotice p{
   margin:0;
   font:500 clamp(18px,4.7vw,25px)/1.42 Georgia,'Times New Roman',serif;
