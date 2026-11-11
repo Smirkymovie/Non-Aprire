@@ -1,4 +1,33 @@
-const CACHE='non-aprire-ui36-audio-wifi-waves';const ASSETS=['./','./index.html','./style.css','./app.js','./manifest.webmanifest','./icon.svg','./bg-home.jpg','./bg-chat.jpg','./bg-chapter.jpg','./scene-window.jpg','./entry-photo-1.png','./entry-photo-2.png','./room-photo-bed.jpg','./mirror-photo.jpg','./respiro_00_03.wav','./door-threshold.wav','./door-photo-1.png','./door-photo-2.png','./door-photo-3.png','./door-photo-4.png'];
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
-self.addEventListener('fetch',e=>{if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put('./index.html',c));return r}).catch(()=>caches.match('./index.html')));return}e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)))});
+const CACHE='non-aprire-react-ts-ui37-v2';
+const STATIC_ASSETS=[
+  './','./index.html','./style.css','./manifest.webmanifest','./icon.svg',
+  './bg-home.jpg','./bg-chat.jpg','./bg-chapter.jpg','./scene-window.jpg',
+  './entry-photo-1.png','./entry-photo-2.png','./room-photo-bed.jpg','./mirror-photo.jpg',
+  './respiro_00_03.wav','./door-threshold.wav','./door-photo-1.png','./door-photo-2.png',
+  './door-photo-3.png','./door-photo-4.png'
+];
+self.addEventListener('install',event=>{
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(STATIC_ASSETS)));
+});
+self.addEventListener('activate',event=>{
+  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
+});
+self.addEventListener('fetch',event=>{
+  if(event.request.method!=='GET')return;
+  if(event.request.mode==='navigate'){
+    event.respondWith(fetch(event.request).then(response=>{
+      const copy=response.clone();
+      caches.open(CACHE).then(cache=>cache.put('./index.html',copy));
+      return response;
+    }).catch(()=>caches.match('./index.html')));
+    return;
+  }
+  event.respondWith(fetch(event.request).then(response=>{
+    if(response && response.ok){
+      const copy=response.clone();
+      caches.open(CACHE).then(cache=>cache.put(event.request,copy));
+    }
+    return response;
+  }).catch(()=>caches.match(event.request)));
+});
